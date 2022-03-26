@@ -1,18 +1,22 @@
 package main
 
 import (
-	"github.com/gonutz/framebuffer"
+	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
-	"fmt"
-    "net/http"
-	"encoding/json"
+	"net/http"
+	"strings"
+
+	"github.com/gonutz/framebuffer"
+	qrcode "github.com/skip2/go-qrcode"
+	"github.com/stianeikeland/go-rpio/v4"
 )
 
 type RGB struct {
-    R uint8
-    G uint8
+	R uint8
+	G uint8
 	B uint8
 }
 
@@ -21,9 +25,9 @@ func rgb(w http.ResponseWriter, req *http.Request) {
 	var c RGB
 	err := json.NewDecoder(req.Body).Decode(&c)
 	if err != nil {
-        http.Error(w, "Requires json body with R, G, and B keys! Values must be 0-255\n", http.StatusBadRequest)
-        return
-    }
+		http.Error(w, "Requires json body with R, G, and B keys! Values must be 0-255\n", http.StatusBadRequest)
+		return
+	}
 
 	drawSolidColor(c)
 	fmt.Fprintf(w, "parsed color: R%v G%v B%v\n", c.R, c.G, c.B)
@@ -31,7 +35,7 @@ func rgb(w http.ResponseWriter, req *http.Request) {
 }
 
 func drawSolidColor(c RGB) {
-	fb, err := framebuffer.Open("/dev/fb0")
+	fb, err := framebuffer.Open("/dev/fb1")
 	if err != nil {
 		panic(err)
 	}
@@ -40,22 +44,53 @@ func drawSolidColor(c RGB) {
 	draw.Draw(fb, fb.Bounds(), magenta, image.ZP, draw.Src)
 }
 
+func qr(w http.ResponseWriter, req *http.Request) {
+	query := req.URL.Query()
+	content, present := query["content"]
+	if !present {
+		http.Error(w, "Pass ?content= to render a QR code\n", http.StatusBadRequest)
+		return
+	}
+
+	fb, err := framebuffer.Open("/dev/fb1")
+	if err != nil {
+		panic(err)
+	}
+	defer fb.Close()
+
+	// var q qrcode.QRCode
+	q, err := qrcode.New(strings.Join(content, ""), qrcode.Medium)
+	// var qr image.Image
+	img := q.Image(240)
+	// magenta := image.NewUniform(color.RGBA{c.R, c.G, c.B, 255})
+	draw.Draw(fb, fb.Bounds(), img, image.ZP, draw.Src)
+}
+
 func hello(w http.ResponseWriter, req *http.Request) {
-    fmt.Fprintf(w, "hello\n")
+	fmt.Fprintf(w, "hello\n")
 }
 
 func headers(w http.ResponseWriter, req *http.Request) {
-    for name, headers := range req.Header {
-        for _, h := range headers {
-            fmt.Fprintf(w, "%v: %v\n", name, h)
-        }
-    }
+	for name, headers := range req.Header {
+		for _, h := range headers {
+			fmt.Fprintf(w, "%v: %v\n", name, h)
+		}
+	}
 }
 
 func main() {
-    http.HandleFunc("/hello", hello)
-    http.HandleFunc("/rgb", rgb)
-    http.HandleFunc("/headers", headers)
+	err := rpio.Open()
+	if err != nil {
+		panic(err)
+	}
+	backlight := rpio.Pin(22)
+	backlight.Output() // Output mode
+	backlight.High()   // Set pin High
+
+	http.HandleFunc("/hello", hello)
+	http.HandleFunc("/rgb", rgb)
+	http.HandleFunc("/headers", headers)
+	http.HandleFunc("/qr", qr)
 	fmt.Println("Listening on port 8321!")
-    http.ListenAndServe(":8321", nil)
+	http.ListenAndServe(":8321", nil)
 }
