@@ -6,13 +6,19 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"io/ioutil"
+	"log"
+	"net"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gonutz/framebuffer"
 	qrcode "github.com/skip2/go-qrcode"
 	"github.com/stianeikeland/go-rpio/v4"
 )
+
+var fbNum string
 
 type RGB struct {
 	R uint8
@@ -35,7 +41,7 @@ func rgb(w http.ResponseWriter, req *http.Request) {
 }
 
 func drawSolidColor(c RGB) {
-	fb, err := framebuffer.Open("/dev/fb1")
+	fb, err := framebuffer.Open("/dev/" + fbNum)
 	if err != nil {
 		panic(err)
 	}
@@ -52,7 +58,7 @@ func qr(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fb, err := framebuffer.Open("/dev/fb1")
+	fb, err := framebuffer.Open("/dev/" + fbNum)
 	if err != nil {
 		panic(err)
 	}
@@ -62,8 +68,9 @@ func qr(w http.ResponseWriter, req *http.Request) {
 	q, err := qrcode.New(strings.Join(content, ""), qrcode.Medium)
 	// var qr image.Image
 	img := q.Image(240)
-	// magenta := image.NewUniform(color.RGBA{c.R, c.G, c.B, 255})
 	draw.Draw(fb, fb.Bounds(), img, image.ZP, draw.Src)
+
+	fmt.Println("QR Code printed to screen\n")
 }
 
 func hello(w http.ResponseWriter, req *http.Request) {
@@ -78,6 +85,15 @@ func headers(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func drawImage(w http.ResponseWriter, req *http.Request) {
+	fb, err := framebuffer.Open("/dev/" + fbNum)
+	img, _, err := image.Decode(req.Body)
+	if err != nil {
+		panic(err)
+	}
+	draw.Draw(fb, fb.Bounds(), img, image.ZP, draw.Src)
+}
+
 func main() {
 	err := rpio.Open()
 	if err != nil {
@@ -89,8 +105,39 @@ func main() {
 
 	http.HandleFunc("/hello", hello)
 	http.HandleFunc("/rgb", rgb)
+	http.HandleFunc("/image", drawImage)
 	http.HandleFunc("/headers", headers)
 	http.HandleFunc("/qr", qr)
-	fmt.Println("Listening on port 8321!")
-	http.ListenAndServe(":8321", nil)
+
+	items, _ := ioutil.ReadDir("/sys/class/graphics")
+	for _, item := range items {
+		data, err := ioutil.ReadFile("/sys/class/graphics/" + item.Name() + "/name")
+		if item.Name() == "fbcon" {
+			continue
+		}
+		if err != nil {
+			log.Fatalf("Could not enumerate framebuffers %v", err)
+			return
+		}
+		if string(data) == "fb_st7789v\n" {
+			fbNum = item.Name()
+			fmt.Println("Displaying on " + fbNum)
+		}
+
+	}
+
+	os.MkdirAll("/var/run/pibox/", 0777)
+	file := "/var/run/pibox/framebuffer.sock"
+	os.Remove(file)
+	fmt.Printf("Listening on socket: %s\n", file)
+	listener, err := net.Listen("unix", file)
+	os.Chmod(file, 0777)
+	if err != nil {
+		log.Fatalf("Could not listen on %s: %v", file, err)
+		return
+	}
+	defer listener.Close()
+	if err = http.Serve(listener, nil); err != nil {
+		log.Fatalf("Could not start HTTP server: %v", err)
+	}
 }
