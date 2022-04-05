@@ -47,7 +47,7 @@ func drawSolidColor(c RGB) {
 	}
 	defer fb.Close()
 	magenta := image.NewUniform(color.RGBA{c.R, c.G, c.B, 255})
-	draw.Draw(fb, fb.Bounds(), magenta, image.ZP, draw.Src)
+	draw.Draw(fb, fb.Bounds(), magenta, image.Point{}, draw.Src)
 }
 
 func qr(w http.ResponseWriter, req *http.Request) {
@@ -65,12 +65,22 @@ func qr(w http.ResponseWriter, req *http.Request) {
 	defer fb.Close()
 
 	// var q qrcode.QRCode
-	q, err := qrcode.New(strings.Join(content, ""), qrcode.Medium)
+	q, err := qrcode.New(strings.Join(content, ""), qrcode.Low)
+	q.DisableBorder = true
+	// q.ForegroundColor = color.RGBA{236, 57, 99, 255}
+	if err != nil {
+		panic(err)
+	}
 	// var qr image.Image
-	img := q.Image(240)
-	draw.Draw(fb, fb.Bounds(), img, image.ZP, draw.Src)
+	img := q.Image(180)
 
-	fmt.Println("QR Code printed to screen\n")
+	draw.Draw(fb,
+		image.Rectangle{Min: image.Point{X: 30, Y: 47}, Max: image.Point{X: 210, Y: 227}},
+		img,
+		image.Point{},
+		draw.Src)
+
+	fmt.Println("QR Code printed to screen")
 }
 
 func hello(w http.ResponseWriter, req *http.Request) {
@@ -87,11 +97,19 @@ func headers(w http.ResponseWriter, req *http.Request) {
 
 func drawImage(w http.ResponseWriter, req *http.Request) {
 	fb, err := framebuffer.Open("/dev/" + fbNum)
+	if err != nil {
+		panic(err)
+	}
 	img, _, err := image.Decode(req.Body)
 	if err != nil {
 		panic(err)
 	}
 	draw.Draw(fb, fb.Bounds(), img, image.ZP, draw.Src)
+}
+
+func exit(w http.ResponseWriter, req *http.Request) {
+	fmt.Println("Received exit request, shutting down...")
+	os.Exit(0)
 }
 
 func main() {
@@ -108,6 +126,7 @@ func main() {
 	http.HandleFunc("/image", drawImage)
 	http.HandleFunc("/headers", headers)
 	http.HandleFunc("/qr", qr)
+	http.HandleFunc("/exit", exit)
 
 	items, _ := ioutil.ReadDir("/sys/class/graphics")
 	for _, item := range items {
@@ -123,10 +142,8 @@ func main() {
 			fbNum = item.Name()
 			fmt.Println("Displaying on " + fbNum)
 		}
-
 	}
 
-	os.MkdirAll("/var/run/pibox/", 0777)
 	file := "/var/run/pibox/framebuffer.sock"
 	os.Remove(file)
 	fmt.Printf("Listening on socket: %s\n", file)
