@@ -230,6 +230,7 @@ func main() {
 	setFramebuffer()
 	splash()
 
+	os.MkdirAll("/var/run/pibox/", 0755)
 	file := "/var/run/pibox/framebuffer.sock"
 	os.Remove(file)
 	fmt.Printf("Listening on socket: %s\n", file)
