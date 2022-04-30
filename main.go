@@ -328,7 +328,7 @@ func main() {
 	setFramebuffer()
 	splash()
 
-	time.AfterFunc(0*time.Second, stats)
+	time.AfterFunc(6*time.Second, stats)
 
 	os.MkdirAll("/var/run/pibox/", 0755)
 	file := "/var/run/pibox/framebuffer.sock"
