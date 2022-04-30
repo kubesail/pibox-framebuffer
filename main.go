@@ -9,6 +9,7 @@ import (
 	"image/gif"
 	"io/ioutil"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -21,11 +22,16 @@ import (
 	_ "github.com/kubesail/pibox-framebuffer/statik"
 	"github.com/rakyll/statik/fs"
 
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
 	qrcode "github.com/skip2/go-qrcode"
 	"github.com/stianeikeland/go-rpio/v4"
 )
 
 var fbNum string
+var statsOff = false
+
+const SCREEN_SIZE = 240
 
 type RGB struct {
 	R uint8
@@ -55,6 +61,7 @@ func drawSolidColor(c RGB) {
 	defer fb.Close()
 	magenta := image.NewUniform(color.RGBA{c.R, c.G, c.B, 255})
 	draw.Draw(fb, fb.Bounds(), magenta, image.Point{}, draw.Src)
+	statsOff = true
 }
 
 func qr(w http.ResponseWriter, req *http.Request) {
@@ -88,10 +95,10 @@ func qr(w http.ResponseWriter, req *http.Request) {
 		draw.Src)
 
 	fmt.Println("QR Code printed to screen")
+	statsOff = true
 }
 
-func text(w http.ResponseWriter, req *http.Request) {
-	const S = 240
+func textRequest(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	content := query["content"]
 	if len(content) == 0 {
@@ -101,37 +108,50 @@ func text(w http.ResponseWriter, req *http.Request) {
 	if len(size) == 0 {
 		size = append(size, "22")
 	}
-
+	sizeInt, _ := strconv.Atoi(size[0])
 	x := query["x"]
-	xInt := S / 2
+	xInt := SCREEN_SIZE / 2
 	if len(x) > 0 {
 		xInt, _ = strconv.Atoi(x[0])
 	}
 	y := query["y"]
-	yInt := S / 2
+	yInt := SCREEN_SIZE / 2
 	if len(y) > 0 {
 		yInt, _ = strconv.Atoi(y[0])
 	}
+	dc := gg.NewContext(SCREEN_SIZE, SCREEN_SIZE)
+	dc.DrawRectangle(0, 0, 240, 240)
+	dc.SetColor(color.RGBA{51, 51, 51, 255})
+	dc.Fill()
+	textOnContext(dc, float64(xInt), float64(yInt), float64(sizeInt), content[0], RGB{R: 0, G: 0, B: 0}, true, gg.AlignCenter)
+	flushTextToScreen(dc)
+	statsOff = true
+}
 
-	sizeInt, _ := strconv.Atoi(size[0])
-	dc := gg.NewContext(S, S)
-	dc.SetRGB(0, 0, 0)
-	if err := dc.LoadFontFace("/usr/share/fonts/truetype/piboto/Piboto-Regular.ttf", float64(sizeInt)); err != nil {
-		panic(err)
+func textOnContext(dc *gg.Context, x float64, y float64, size float64, content string, c RGB, bold bool, align gg.Align) {
+	const S = 240
+	// dc.SetRGB(float64(c.R), float64(c.G), float64(c.B))
+	if bold {
+		if err := dc.LoadFontFace("/usr/share/fonts/truetype/piboto/Piboto-Bold.ttf", float64(size)); err != nil {
+			panic(err)
+		}
+	} else {
+		if err := dc.LoadFontFace("/usr/share/fonts/truetype/piboto/Piboto-Regular.ttf", float64(size)); err != nil {
+			panic(err)
+		}
 	}
-	dc.DrawStringWrapped(content[0], float64(xInt), float64(yInt), 0.5, 0.5, 240, 1.5, gg.AlignCenter)
-	dc.Clip()
 
+	dc.SetColor(color.RGBA{c.R, c.G, c.B, 255})
+	dc.DrawStringWrapped(content, x, y, 0.5, 0.5, 240, 1.5, align)
+	// dc.Clip()
+}
+
+func flushTextToScreen(dc *gg.Context) {
 	fb, err := framebuffer.Open("/dev/" + fbNum)
 	if err != nil {
 		panic(err)
 	}
 	draw.Draw(fb, fb.Bounds(), dc.Image(), image.Point{}, draw.Src)
-
-}
-
-func hello(w http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(w, "hello\n")
 }
 
 func drawImage(w http.ResponseWriter, req *http.Request) {
@@ -146,6 +166,7 @@ func drawImage(w http.ResponseWriter, req *http.Request) {
 	}
 	draw.Draw(fb, fb.Bounds(), img, image.Point{}, draw.Src)
 	fmt.Fprintf(w, "Image drawn\n")
+	statsOff = true
 }
 
 func drawGIF(w http.ResponseWriter, req *http.Request) {
@@ -163,6 +184,7 @@ func drawGIF(w http.ResponseWriter, req *http.Request) {
 		time.Sleep(time.Millisecond * 3 * time.Duration(imgGif.Delay[i]))
 	}
 	fmt.Fprintf(w, "GIF drawn\n")
+	statsOff = true
 }
 
 func exit(w http.ResponseWriter, req *http.Request) {
@@ -210,6 +232,82 @@ func splash() {
 	draw.Draw(fb, fb.Bounds(), img, image.ZP, draw.Src)
 }
 
+func statsOn(w http.ResponseWriter, req *http.Request) {
+	fmt.Fprintf(w, "Stats on\n")
+	statsOff = false
+}
+
+func stats() {
+	defer time.AfterFunc(3*time.Second, stats)
+	if statsOff {
+		return
+	}
+
+	var cpuUsage, _ = cpu.Percent(0, false)
+	v, _ := mem.VirtualMemory()
+
+	dc := gg.NewContext(SCREEN_SIZE, SCREEN_SIZE)
+	dc.DrawRectangle(0, 0, 240, 240)
+	dc.SetColor(color.RGBA{51, 51, 51, 255})
+	dc.Fill()
+	textOnContext(dc, 70, 28, 22, "CPU", RGB{R: 160, G: 160, B: 160}, false, gg.AlignCenter)
+	cpuPercent := cpuUsage[0]
+	colorCpu := RGB{R: 183, G: 225, B: 205}
+	if cpuPercent > 20 {
+		colorCpu = RGB{R: 252, G: 232, B: 178}
+	}
+	if cpuPercent > 70 {
+		colorCpu = RGB{R: 244, G: 199, B: 195}
+	}
+	textOnContext(dc, 70, 66, 30, fmt.Sprintf("%v%%", math.Round(cpuPercent)), colorCpu, true, gg.AlignCenter)
+	textOnContext(dc, 170, 28, 22, "MEM", RGB{R: 160, G: 160, B: 160}, false, gg.AlignCenter)
+	colorMem := RGB{R: 183, G: 225, B: 205}
+	if cpuPercent > 20 {
+		colorMem = RGB{R: 252, G: 232, B: 178}
+	}
+	if cpuPercent > 70 {
+		colorMem = RGB{R: 244, G: 199, B: 195}
+	}
+	textOnContext(dc, 170, 66, 30, fmt.Sprintf("%v%%", math.Round(v.UsedPercent)), colorMem, true, gg.AlignCenter)
+
+	interfaces, _ := net.Interfaces()
+	for _, inter := range interfaces {
+		if inter.Name == "eth0" {
+			textOnContext(dc, 130, 180, 22, "eth", RGB{R: 160, G: 160, B: 160}, false, gg.AlignLeft)
+			addrs, _ := inter.Addrs()
+			var ipv4 = ""
+			for _, addr := range addrs {
+				ip := addr.String()
+				if strings.Contains(ip, ".") {
+					ipv4 = ip[:len(ip)-3] // assign and remove subnet mask
+				}
+			}
+			if ipv4 == "" {
+				textOnContext(dc, 110, 180, 22, "Disconnected", RGB{R: 100, G: 100, B: 100}, true, gg.AlignRight)
+			} else {
+				textOnContext(dc, 110, 180, 26, ipv4, RGB{R: 180, G: 180, B: 180}, true, gg.AlignRight)
+			}
+		} else if inter.Name == "wlan0" {
+			textOnContext(dc, 130, 210, 22, "wifi", RGB{R: 180, G: 180, B: 180}, false, gg.AlignLeft)
+			addrs, _ := inter.Addrs()
+			var ipv4 = ""
+			for _, addr := range addrs {
+				ip := addr.String()
+				if strings.Contains(ip, ".") {
+					ipv4 = ip[:len(ip)-3] // assign and remove subnet mask
+				}
+			}
+			if ipv4 == "" {
+				textOnContext(dc, 110, 210, 22, "Disconnected", RGB{R: 100, G: 100, B: 100}, true, gg.AlignRight)
+			} else {
+				textOnContext(dc, 110, 210, 26, ipv4, RGB{R: 180, G: 180, B: 180}, true, gg.AlignRight)
+			}
+
+		}
+	}
+	flushTextToScreen(dc)
+}
+
 func main() {
 	err := rpio.Open()
 	if err != nil {
@@ -219,16 +317,18 @@ func main() {
 	backlight.Output() // Output mode
 	backlight.High()   // Set pin High
 
-	http.HandleFunc("/hello", hello)
 	http.HandleFunc("/rgb", rgb)
 	http.HandleFunc("/image", drawImage)
 	http.HandleFunc("/gif", drawGIF)
-	http.HandleFunc("/text", text)
+	http.HandleFunc("/text", textRequest)
+	http.HandleFunc("/stats/on", statsOn)
 	http.HandleFunc("/qr", qr)
 	http.HandleFunc("/exit", exit)
 
 	setFramebuffer()
 	splash()
+
+	time.AfterFunc(0*time.Second, stats)
 
 	os.MkdirAll("/var/run/pibox/", 0755)
 	file := "/var/run/pibox/framebuffer.sock"
