@@ -2,6 +2,8 @@
 
 The PiBox's display server. Lightweight Go binary to draw images to the framebuffer
 
+## Usage
+
 ### Writing arbitrary text
 
 You can make requests to the framebuffer service to write arbitrary text.
