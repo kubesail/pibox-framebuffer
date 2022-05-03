@@ -15,7 +15,7 @@ curl --get --unix-socket /var/run/pibox/framebuffer.sock http://localhost/text \
   --data-urlencode "size=68"
 ```
 
-## Installing
+## Installing for development
 
 ### Install framebuffer kernel module
     sudo pip3 install --upgrade adafruit-python-shell click
