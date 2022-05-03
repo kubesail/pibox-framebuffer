@@ -104,6 +104,19 @@ func textRequest(w http.ResponseWriter, req *http.Request) {
 	if len(content) == 0 {
 		content = append(content, "no content param")
 	}
+	background := query["background"]
+	dc := gg.NewContext(SCREEN_SIZE, SCREEN_SIZE)
+	if len(background) == 1 {
+		dc.SetHexColor(background[0])
+		dc.DrawRectangle(0, 0, 240, 240)
+		dc.Fill()
+	}
+	c := query["color"]
+	if len(c) > 0 {
+		dc.SetHexColor(c[0])
+	} else {
+		dc.SetHexColor("cccccc")
+	}
 	size := query["size"]
 	if len(size) == 0 {
 		size = append(size, "22")
@@ -119,16 +132,13 @@ func textRequest(w http.ResponseWriter, req *http.Request) {
 	if len(y) > 0 {
 		yInt, _ = strconv.Atoi(y[0])
 	}
-	dc := gg.NewContext(SCREEN_SIZE, SCREEN_SIZE)
-	dc.DrawRectangle(0, 0, 240, 240)
-	dc.SetColor(color.RGBA{51, 51, 51, 255})
-	dc.Fill()
-	textOnContext(dc, float64(xInt), float64(yInt), float64(sizeInt), content[0], RGB{R: 0, G: 0, B: 0}, true, gg.AlignCenter)
+
+	textOnContext(dc, float64(xInt), float64(yInt), float64(sizeInt), content[0], true, gg.AlignCenter)
 	flushTextToScreen(dc)
 	statsOff = true
 }
 
-func textOnContext(dc *gg.Context, x float64, y float64, size float64, content string, c RGB, bold bool, align gg.Align) {
+func textOnContext(dc *gg.Context, x float64, y float64, size float64, content string, bold bool, align gg.Align) {
 	const S = 240
 	// dc.SetRGB(float64(c.R), float64(c.G), float64(c.B))
 	if bold {
@@ -140,8 +150,6 @@ func textOnContext(dc *gg.Context, x float64, y float64, size float64, content s
 			panic(err)
 		}
 	}
-
-	dc.SetColor(color.RGBA{c.R, c.G, c.B, 255})
 	dc.DrawStringWrapped(content, x, y, 0.5, 0.5, 240, 1.5, align)
 	// dc.Clip()
 }
@@ -231,7 +239,8 @@ func splash() {
 	}
 	draw.Draw(fb, fb.Bounds(), img, image.ZP, draw.Src)
 	dc := gg.NewContext(SCREEN_SIZE, SCREEN_SIZE)
-	textOnContext(dc, 120, 210, 20, "starting services", RGB{R: 100, G: 100, B: 100}, true, gg.AlignCenter)
+	dc.SetColor(color.RGBA{100, 100, 100, 255})
+	textOnContext(dc, 120, 210, 20, "starting services", true, gg.AlignCenter)
 	flushTextToScreen(dc)
 }
 
@@ -253,30 +262,35 @@ func stats() {
 	dc.DrawRectangle(0, 0, 240, 240)
 	dc.SetColor(color.RGBA{51, 51, 51, 255})
 	dc.Fill()
-	textOnContext(dc, 70, 28, 22, "CPU", RGB{R: 160, G: 160, B: 160}, false, gg.AlignCenter)
+	dc.SetColor(color.RGBA{160, 160, 160, 255})
+	textOnContext(dc, 70, 28, 22, "CPU", false, gg.AlignCenter)
 	cpuPercent := cpuUsage[0]
-	colorCpu := RGB{R: 183, G: 225, B: 205}
+	colorCpu := color.RGBA{183, 225, 205, 255}
 	if cpuPercent > 40 {
-		colorCpu = RGB{R: 252, G: 232, B: 178}
+		colorCpu = color.RGBA{252, 232, 178, 255}
 	}
 	if cpuPercent > 70 {
-		colorCpu = RGB{R: 244, G: 199, B: 195}
+		colorCpu = color.RGBA{244, 199, 195, 255}
 	}
-	textOnContext(dc, 70, 66, 30, fmt.Sprintf("%v%%", math.Round(cpuPercent)), colorCpu, true, gg.AlignCenter)
-	textOnContext(dc, 170, 28, 22, "MEM", RGB{R: 160, G: 160, B: 160}, false, gg.AlignCenter)
-	colorMem := RGB{R: 183, G: 225, B: 205}
+	dc.SetColor(colorCpu)
+	textOnContext(dc, 70, 66, 30, fmt.Sprintf("%v%%", math.Round(cpuPercent)), true, gg.AlignCenter)
+	dc.SetColor(color.RGBA{160, 160, 160, 255})
+	textOnContext(dc, 170, 28, 22, "MEM", false, gg.AlignCenter)
+	colorMem := color.RGBA{183, 225, 205, 255}
 	if cpuPercent > 40 {
-		colorMem = RGB{R: 252, G: 232, B: 178}
+		colorMem = color.RGBA{252, 232, 178, 255}
 	}
 	if cpuPercent > 70 {
-		colorMem = RGB{R: 244, G: 199, B: 195}
+		colorMem = color.RGBA{244, 199, 195, 255}
 	}
-	textOnContext(dc, 170, 66, 30, fmt.Sprintf("%v%%", math.Round(v.UsedPercent)), colorMem, true, gg.AlignCenter)
+	dc.SetColor(colorMem)
+	textOnContext(dc, 170, 66, 30, fmt.Sprintf("%v%%", math.Round(v.UsedPercent)), true, gg.AlignCenter)
 
 	interfaces, _ := net.Interfaces()
 	for _, inter := range interfaces {
 		if inter.Name == "eth0" {
-			textOnContext(dc, 130, 180, 22, "eth", RGB{R: 160, G: 160, B: 160}, false, gg.AlignLeft)
+			dc.SetColor(color.RGBA{160, 160, 160, 255})
+			textOnContext(dc, 130, 180, 22, "eth", false, gg.AlignLeft)
 			addrs, _ := inter.Addrs()
 			var ipv4 = ""
 			for _, addr := range addrs {
@@ -286,17 +300,20 @@ func stats() {
 				}
 			}
 			if ipv4 == "" {
-				textOnContext(dc, 110, 180, 22, "Disconnected", RGB{R: 100, G: 100, B: 100}, true, gg.AlignRight)
+				dc.SetColor(color.RGBA{100, 100, 100, 255})
+				textOnContext(dc, 110, 180, 22, "Disconnected", true, gg.AlignRight)
 			} else {
 				w, _ := dc.MeasureString(ipv4)
 				var fontSize float64 = 26
 				if w > 150 {
 					fontSize = 22
 				}
-				textOnContext(dc, 110, 180, fontSize, ipv4, RGB{R: 180, G: 180, B: 180}, true, gg.AlignRight)
+				dc.SetColor(color.RGBA{180, 180, 180, 255})
+				textOnContext(dc, 110, 180, fontSize, ipv4, true, gg.AlignRight)
 			}
 		} else if inter.Name == "wlan0" {
-			textOnContext(dc, 130, 210, 22, "wifi", RGB{R: 180, G: 180, B: 180}, false, gg.AlignLeft)
+			dc.SetColor(color.RGBA{180, 180, 180, 255})
+			textOnContext(dc, 130, 210, 22, "wifi", false, gg.AlignLeft)
 			addrs, _ := inter.Addrs()
 			var ipv4 = ""
 			for _, addr := range addrs {
@@ -306,14 +323,16 @@ func stats() {
 				}
 			}
 			if ipv4 == "" {
-				textOnContext(dc, 110, 210, 22, "Disconnected", RGB{R: 100, G: 100, B: 100}, true, gg.AlignRight)
+				dc.SetColor(color.RGBA{100, 100, 100, 255})
+				textOnContext(dc, 110, 210, 22, "Disconnected", true, gg.AlignRight)
 			} else {
 				w, _ := dc.MeasureString(ipv4)
 				var fontSize float64 = 26
 				if w > 150 {
 					fontSize = 22
 				}
-				textOnContext(dc, 110, 210, fontSize, ipv4, RGB{R: 180, G: 180, B: 180}, true, gg.AlignRight)
+				dc.SetColor(color.RGBA{180, 180, 180, 255})
+				textOnContext(dc, 110, 210, fontSize, ipv4, true, gg.AlignRight)
 			}
 
 		}
