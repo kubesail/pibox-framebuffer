@@ -8,11 +8,11 @@ You can make requests to the framebuffer service to write arbitrary text. An exa
 ```bash
 #!/bin/bash
 $SCRIPT_OUTPUT=$(date "+%A, %b %-d %l:%m")
-curl --unix-socket /var/run/pibox/framebuffer.sock http://localhost/text \
+curl --get --unix-socket /var/run/pibox/framebuffer.sock http://localhost/text \
   --data-urlencode "content=${CONTENT}" \
   --data-urlencode "color=000000" \
   --data-urlencode "background=ffffff" \
-  --data-urlencode "size=60"
+  --data-urlencode "size=68"
 ```
 
 ## Install framebuffer kernel module
