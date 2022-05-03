@@ -3,7 +3,7 @@ The PiBox's display server. Lightweight Go binary to draw images to the framebuf
 
 ## Writing arbitrary text
 
-You can make a script write arbitrary text such as a script output to the PiBox screen
+You can make requests to the framebuffer service to write arbitrary text. An example of this would be writing the output of a script to the PiBox screen:
 
 ```bash
 #!/bin/bash
