@@ -3,17 +3,19 @@ The PiBox's display server. Lightweight Go binary to draw images to the framebuf
 
 ## Writing arbitrary text
 
-You can make requests to the framebuffer service to write arbitrary text. An example of this would be writing the output of a script to the PiBox screen:
+You can make requests to the framebuffer service to write arbitrary text. Here's how you might write the output of the `date` command to the PiBox screen:
 
 ```bash
 #!/bin/bash
-$SCRIPT_OUTPUT=$(date "+%A, %b %-d %l:%m")
+SCRIPT_OUTPUT=$(date "+%A, %b %-d %l:%m")
 curl --get --unix-socket /var/run/pibox/framebuffer.sock http://localhost/text \
-  --data-urlencode "content=${CONTENT}" \
+  --data-urlencode "content=${SCRIPT_OUTPUT}" \
   --data-urlencode "color=000000" \
   --data-urlencode "background=ffffff" \
   --data-urlencode "size=68"
 ```
+
+
 
 ## Install framebuffer kernel module
     sudo pip3 install --upgrade adafruit-python-shell click
