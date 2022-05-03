@@ -5,7 +5,7 @@ The PiBox's display server. Lightweight Go binary to draw images to the framebuf
 
 You can make a script write arbitrary text such as a script output to the PiBox screen
 
-```
+```bash
 #!/bin/bash
 $SCRIPT_OUTPUT=$(date "+%A, %b %-d %l:%m")
 curl --unix-socket /var/run/pibox/framebuffer.sock http://localhost/text \
