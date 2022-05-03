@@ -230,6 +230,9 @@ func splash() {
 		panic(err)
 	}
 	draw.Draw(fb, fb.Bounds(), img, image.ZP, draw.Src)
+	dc := gg.NewContext(SCREEN_SIZE, SCREEN_SIZE)
+	textOnContext(dc, 120, 210, 20, "starting services", RGB{R: 100, G: 100, B: 100}, true, gg.AlignCenter)
+	flushTextToScreen(dc)
 }
 
 func statsOn(w http.ResponseWriter, req *http.Request) {
@@ -253,7 +256,7 @@ func stats() {
 	textOnContext(dc, 70, 28, 22, "CPU", RGB{R: 160, G: 160, B: 160}, false, gg.AlignCenter)
 	cpuPercent := cpuUsage[0]
 	colorCpu := RGB{R: 183, G: 225, B: 205}
-	if cpuPercent > 20 {
+	if cpuPercent > 40 {
 		colorCpu = RGB{R: 252, G: 232, B: 178}
 	}
 	if cpuPercent > 70 {
@@ -262,7 +265,7 @@ func stats() {
 	textOnContext(dc, 70, 66, 30, fmt.Sprintf("%v%%", math.Round(cpuPercent)), colorCpu, true, gg.AlignCenter)
 	textOnContext(dc, 170, 28, 22, "MEM", RGB{R: 160, G: 160, B: 160}, false, gg.AlignCenter)
 	colorMem := RGB{R: 183, G: 225, B: 205}
-	if cpuPercent > 20 {
+	if cpuPercent > 40 {
 		colorMem = RGB{R: 252, G: 232, B: 178}
 	}
 	if cpuPercent > 70 {
@@ -285,7 +288,12 @@ func stats() {
 			if ipv4 == "" {
 				textOnContext(dc, 110, 180, 22, "Disconnected", RGB{R: 100, G: 100, B: 100}, true, gg.AlignRight)
 			} else {
-				textOnContext(dc, 110, 180, 26, ipv4, RGB{R: 180, G: 180, B: 180}, true, gg.AlignRight)
+				w, _ := dc.MeasureString(ipv4)
+				var fontSize float64 = 26
+				if w > 150 {
+					fontSize = 22
+				}
+				textOnContext(dc, 110, 180, fontSize, ipv4, RGB{R: 180, G: 180, B: 180}, true, gg.AlignRight)
 			}
 		} else if inter.Name == "wlan0" {
 			textOnContext(dc, 130, 210, 22, "wifi", RGB{R: 180, G: 180, B: 180}, false, gg.AlignLeft)
@@ -300,7 +308,12 @@ func stats() {
 			if ipv4 == "" {
 				textOnContext(dc, 110, 210, 22, "Disconnected", RGB{R: 100, G: 100, B: 100}, true, gg.AlignRight)
 			} else {
-				textOnContext(dc, 110, 210, 26, ipv4, RGB{R: 180, G: 180, B: 180}, true, gg.AlignRight)
+				w, _ := dc.MeasureString(ipv4)
+				var fontSize float64 = 26
+				if w > 150 {
+					fontSize = 22
+				}
+				textOnContext(dc, 110, 210, fontSize, ipv4, RGB{R: 180, G: 180, B: 180}, true, gg.AlignRight)
 			}
 
 		}
