@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -13,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -96,6 +98,48 @@ func qr(w http.ResponseWriter, req *http.Request) {
 
 	fmt.Println("QR Code printed to screen")
 	statsOff = true
+}
+
+type DiskStatsResponse struct {
+	BlockDevices []string
+	K3sUsage     []string
+}
+
+func diskStats(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var responseData DiskStatsResponse
+	k3sStorageProbe := exec.Command("du", "--max-depth=1", "/var/lib/rancher/k3s/storage/")
+	var k3sStorageProbeStdout bytes.Buffer
+	var k3sStorageProbeStderr bytes.Buffer
+	k3sStorageProbe.Stdout = &k3sStorageProbeStdout
+	k3sStorageProbe.Stderr = &k3sStorageProbeStderr
+	err := k3sStorageProbe.Run()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to run du command: %v\n", k3sStorageProbeStderr.String())
+	} else {
+		responseData.K3sUsage = strings.Split(strings.Replace(strings.Trim(strings.Trim(k3sStorageProbeStdout.String(), "\n"), " "), "\t", " ", -1), "\n")
+	}
+	files, err := ioutil.ReadDir("/sys/block")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to stat /sys/block: %v\n", err)
+	} else {
+		for _, f := range files {
+			if strings.HasPrefix(f.Name(), "loop") {
+				continue
+			}
+			modelFilePath := fmt.Sprintf("/sys/block/%v/device/model", f.Name())
+			modelDataRaw, err := os.ReadFile(modelFilePath)
+			var modelData string
+			modelData = strings.Trim(strings.Trim(string(modelDataRaw), "\n"), " ")
+			if err != nil {
+				fmt.Println(f.Name())
+				fmt.Fprintf(os.Stderr, "Failed to stat /sys/block: %v\n", err)
+			} else {
+				responseData.BlockDevices = append(responseData.BlockDevices, fmt.Sprintf("%v %v", f.Name(), modelData))
+			}
+		}
+	}
+	json.NewEncoder(w).Encode(responseData)
 }
 
 func textRequest(w http.ResponseWriter, req *http.Request) {
@@ -342,12 +386,16 @@ func stats() {
 
 func main() {
 	err := rpio.Open()
-	if err != nil {
-		panic(err)
+	if err == nil {
+		backlight := rpio.Pin(22)
+		backlight.Output() // Output mode
+		backlight.High()   // Set pin High
+		setFramebuffer()
+		splash()
+		time.AfterFunc(6*time.Second, stats)
+	} else {
+		fmt.Fprintf(os.Stderr, "Could not connect to framebuffer screen: %v\n", err)
 	}
-	backlight := rpio.Pin(22)
-	backlight.Output() // Output mode
-	backlight.High()   // Set pin High
 
 	http.HandleFunc("/rgb", rgb)
 	http.HandleFunc("/image", drawImage)
@@ -355,21 +403,20 @@ func main() {
 	http.HandleFunc("/text", textRequest)
 	http.HandleFunc("/stats/on", statsOn)
 	http.HandleFunc("/qr", qr)
+	http.HandleFunc("/disk-stats", diskStats)
 	http.HandleFunc("/exit", exit)
 
-	setFramebuffer()
-	splash()
-
-	time.AfterFunc(6*time.Second, stats)
-
 	os.MkdirAll("/var/run/pibox/", 0755)
-	file := "/var/run/pibox/framebuffer.sock"
-	os.Remove(file)
-	fmt.Printf("Listening on socket: %s\n", file)
-	listener, err := net.Listen("unix", file)
-	os.Chmod(file, 0777)
+	listenSocket := os.Getenv("LISTEN_SOCKET")
+	if listenSocket == "" {
+		listenSocket = "/var/run/pibox/framebuffer.sock"
+	}
+	os.Remove(listenSocket)
+	fmt.Printf("Listening on socket: %s\n", listenSocket)
+	listener, err := net.Listen("unix", listenSocket)
+	os.Chmod(listenSocket, 0777)
 	if err != nil {
-		log.Fatalf("Could not listen on %s: %v", file, err)
+		log.Fatalf("Could not listen on %s: %v", listenSocket, err)
 		return
 	}
 	defer listener.Close()
