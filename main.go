@@ -102,13 +102,15 @@ func qr(w http.ResponseWriter, req *http.Request) {
 
 type DiskStatsResponse struct {
 	BlockDevices []string
+	Partitions   []string
+	Models       []string
 	K3sUsage     []string
 }
 
 func diskStats(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var responseData DiskStatsResponse
-	k3sStorageProbe := exec.Command("du", "--max-depth=1", "/var/lib/rancher/k3s/storage/")
+	k3sStorageProbe := exec.Command("du", "-b", "--max-depth=1", "/var/lib/rancher/k3s/storage/")
 	var k3sStorageProbeStdout bytes.Buffer
 	var k3sStorageProbeStderr bytes.Buffer
 	k3sStorageProbe.Stdout = &k3sStorageProbeStdout
@@ -127,15 +129,32 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 			if strings.HasPrefix(f.Name(), "loop") {
 				continue
 			}
+
+			responseData.BlockDevices = append(responseData.BlockDevices, f.Name())
+
 			modelFilePath := fmt.Sprintf("/sys/block/%v/device/model", f.Name())
 			modelDataRaw, err := os.ReadFile(modelFilePath)
 			var modelData string
 			modelData = strings.Trim(strings.Trim(string(modelDataRaw), "\n"), " ")
 			if err != nil {
 				fmt.Println(f.Name())
-				fmt.Fprintf(os.Stderr, "Failed to stat /sys/block: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Failed to collect model data: %v\n", err)
 			} else {
-				responseData.BlockDevices = append(responseData.BlockDevices, fmt.Sprintf("%v %v", f.Name(), modelData))
+				responseData.Models = append(responseData.Models, fmt.Sprintf("%v %v", f.Name(), modelData))
+			}
+
+			fmt.Println("calling parted " + fmt.Sprintf("/dev/%v", f.Name()))
+			partedOutputRaw := exec.Command("timeout", "2", "parted", fmt.Sprintf("/dev/%v", f.Name()), "print", "-m")
+			var partedOutputStdout bytes.Buffer
+			partedOutputRaw.Stdout = &partedOutputStdout
+			partedErr := partedOutputRaw.Run()
+			if partedErr != nil {
+				fmt.Println(f.Name())
+				fmt.Fprintf(os.Stderr, "Failed to call parted: %v\n", partedErr)
+			} else {
+				var partedOutput string
+				partedOutput = strings.Trim(strings.Trim(partedOutputStdout.String(), "\n"), " ")
+				responseData.Partitions = append(responseData.Partitions, fmt.Sprintf("%v %v", f.Name(), partedOutput))
 			}
 		}
 	}
