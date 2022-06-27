@@ -23,6 +23,6 @@ mkdir -p output
 ${BUILDX_PREFIX} build \
   --pull \
   --platform linux/amd64 \
-  --build-arg BUILD_VERSION="v$(cat VERSION.txt)" \
+  --build-arg BUILD_VERSION="$(cat VERSION.txt)" \
   -t ${TAG} \
   -o output .
