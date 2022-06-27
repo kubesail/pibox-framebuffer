@@ -20,7 +20,7 @@ command -v buildx > /dev/null && BUILDX_PREFIX="buildx"
 
 mkdir -p output
 
-${BUILDX_PREFIX} build \
+DOCKER_BUILDKIT=1 ${BUILDX_PREFIX} build \
   --pull \
   --platform "linux/amd64,linux/arm64" \
   --build-arg BUILD_VERSION="$(cat VERSION.txt)" \
