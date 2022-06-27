@@ -1,1 +1,4 @@
 pibox-framebuffer
+*.sock
+pibox-framebuffer
+output
