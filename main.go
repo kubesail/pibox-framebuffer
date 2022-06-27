@@ -105,6 +105,8 @@ type DiskStatsResponse struct {
 	Partitions   []string
 	Models       []string
 	K3sUsage     []string
+	Lvs          string
+	Pvs          string
 }
 
 func diskStats(w http.ResponseWriter, req *http.Request) {
@@ -121,6 +123,31 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 	} else {
 		responseData.K3sUsage = strings.Split(strings.Replace(strings.Trim(strings.Trim(k3sStorageProbeStdout.String(), "\n"), " "), "\t", " ", -1), "\n")
 	}
+
+	lvs := exec.Command("lvs", "--reportformat", "json")
+	var lvsStdout bytes.Buffer
+	var lvsStderr bytes.Buffer
+	lvs.Stdout = &lvsStdout
+	lvs.Stderr = &lvsStderr
+	lvsErr := lvs.Run()
+	if lvsErr != nil {
+		fmt.Fprintf(os.Stderr, "Failed to run lvs command: %v\n", lvsStderr.String())
+	} else {
+		responseData.Lvs = strings.Replace(strings.Trim(strings.Trim(lvsStdout.String(), "\n"), " "), "\t", " ", -1)
+	}
+
+	pvs := exec.Command("pvs", "--reportformat", "json")
+	var pvsStdout bytes.Buffer
+	var pvsStderr bytes.Buffer
+	pvs.Stdout = &pvsStdout
+	pvs.Stderr = &pvsStderr
+	pvsErr := pvs.Run()
+	if pvsErr != nil {
+		fmt.Fprintf(os.Stderr, "Failed to run pvs command: %v\n", pvsStderr.String())
+	} else {
+		responseData.Pvs = strings.Replace(strings.Trim(strings.Trim(pvsStdout.String(), "\n"), " "), "\t", " ", -1)
+	}
+
 	files, err := ioutil.ReadDir("/sys/block")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to stat /sys/block: %v\n", err)
