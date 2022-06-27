@@ -20,4 +20,9 @@ command -v buildx > /dev/null && BUILDX_PREFIX="buildx"
 
 mkdir -p output
 
-${BUILDX_PREFIX} build --pull --platform linux/amd64,linux/arm64,linux/arm/v7 -t ${TAG} -o output .
+${BUILDX_PREFIX} build \
+  --pull \
+  --platform linux/amd64 \
+  --build-arg BUILD_VERSION="v$(cat VERSION.txt)" \
+  -t ${TAG} \
+  -o output .

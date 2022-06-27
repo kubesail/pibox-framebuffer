@@ -1,13 +1,18 @@
-FROM golang:1.18-bullseye as builder-stage
+FROM --platform=$BUILDPLATFORM golang:1.18-bullseye AS build
+ARG BUILDARCH
+ARG BUILDPLATFORM
+ARG BUILD_VERSION
 
 ENV APP_HOME /go/src/pibox-framebuffer
 WORKDIR "$APP_HOME"
 
 COPY . .
 
-# RUN go mod download
-# RUN go mod verify
-RUN go build -o /pibox-framebuffer
+ENV BINARY_PATH="/pibox-framebuffer-${BUILDARCH}-v${BUILD_VERSION}"
+
+RUN go mod download
+RUN go mod verify
+RUN go build -o "${BINARY_PATH}"
 
 FROM scratch
-COPY --from=builder-stage /pibox-framebuffer /
+COPY --from=build "${BINARY_PATH}" /
