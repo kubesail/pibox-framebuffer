@@ -124,7 +124,7 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 		responseData.K3sUsage = strings.Split(strings.Replace(strings.Trim(strings.Trim(k3sStorageProbeStdout.String(), "\n"), " "), "\t", " ", -1), "\n")
 	}
 
-	lvs := exec.Command("lvs", "--reportformat", "json")
+	lvs := exec.Command("lvs", "--reportformat", "json", "--units=G")
 	var lvsStdout bytes.Buffer
 	var lvsStderr bytes.Buffer
 	lvs.Stdout = &lvsStdout
@@ -136,7 +136,7 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 		responseData.Lvs = strings.Replace(strings.Trim(strings.Trim(lvsStdout.String(), "\n"), " "), "\t", " ", -1)
 	}
 
-	pvs := exec.Command("pvs", "--reportformat", "json")
+	pvs := exec.Command("pvs", "--reportformat", "json", "--units=G")
 	var pvsStdout bytes.Buffer
 	var pvsStderr bytes.Buffer
 	pvs.Stdout = &pvsStdout
