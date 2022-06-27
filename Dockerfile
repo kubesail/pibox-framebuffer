@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.18-bullseye AS build
+FROM --platform=$BUILDPLATFORM golang:1.17-bullseye AS build
 ARG TARGETARCH
 ARG BUILD_VERSION
 ENV BINARY_PATH="/pibox-framebuffer-linux-${TARGETARCH}-v${BUILD_VERSION}"
@@ -6,11 +6,15 @@ ENV BINARY_PATH="/pibox-framebuffer-linux-${TARGETARCH}-v${BUILD_VERSION}"
 ENV APP_HOME /go/src/pibox-framebuffer
 WORKDIR "$APP_HOME"
 
+RUN apt-get -yqq update && apt-get -yqq install gcc build-essential gcc-aarch64-linux-gnu
+
 COPY . .
 
-RUN go mod download
-RUN go mod verify
-RUN GOOS=linux GOARCH=${TARGETARCH} go build -a -o "${BINARY_PATH}"
+ENV CGO_ENABLED=1
+ENV GOOS=linux
+ENV GOARCH="${TARGETARCH}"
+
+RUN ./go-build.sh
 
 FROM scratch
 ARG TARGETARCH
