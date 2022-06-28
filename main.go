@@ -109,6 +109,8 @@ type DiskStatsResponse struct {
 	K3sUsage     []string
 	Lvs          string
 	Pvs          string
+	K3sVersion   string
+	K3sMount     string
 }
 
 func diskStats(w http.ResponseWriter, req *http.Request) {
@@ -124,6 +126,30 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(os.Stderr, "Failed to run du command: %v\n", k3sStorageProbeStderr.String())
 	} else {
 		responseData.K3sUsage = strings.Split(strings.Replace(strings.Trim(strings.Trim(k3sStorageProbeStdout.String(), "\n"), " "), "\t", " ", -1), "\n")
+	}
+
+	findK3s := exec.Command("k3s", "--version")
+	var findK3sStdout bytes.Buffer
+	var findK3sStderr bytes.Buffer
+	findK3s.Stdout = &findK3sStdout
+	findK3s.Stderr = &findK3sStderr
+	findK3sErr := findK3s.Run()
+	if findK3sErr != nil {
+		fmt.Fprintf(os.Stderr, "Failed to run k3s version command: %v\n", findK3sStderr.String())
+	} else {
+		responseData.K3sVersion = strings.Replace(strings.Trim(strings.Trim(findK3sStdout.String(), "\n"), " "), "\t", " ", -1)
+	}
+
+	findMnt := exec.Command("findmnt", "-l", "/var/lib/rancher", "-J")
+	var findMntStdout bytes.Buffer
+	var findMntStderr bytes.Buffer
+	findMnt.Stdout = &findMntStdout
+	findMnt.Stderr = &findMntStderr
+	findMntErr := findMnt.Run()
+	if findMntErr != nil {
+		fmt.Fprintf(os.Stderr, "Failed to run findmnt command: %v\n", findMntStderr.String())
+	} else {
+		responseData.K3sMount = strings.Replace(strings.Trim(strings.Trim(findMntStdout.String(), "\n"), " "), "\t", " ", -1)
 	}
 
 	lvs := exec.Command("lvs", "--reportformat", "json", "--units=G")
