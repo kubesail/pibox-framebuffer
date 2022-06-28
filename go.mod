@@ -9,6 +9,7 @@ require github.com/stianeikeland/go-rpio/v4 v4.6.0
 require github.com/rakyll/statik v0.1.7
 
 require (
+	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/fogleman/gg v1.3.0
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible

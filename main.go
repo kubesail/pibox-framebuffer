@@ -19,12 +19,14 @@ import (
 	"strings"
 	"time"
 
+	human "github.com/dustin/go-humanize"
 	"github.com/fogleman/gg"
 	"github.com/gonutz/framebuffer"
 	_ "github.com/kubesail/pibox-framebuffer/statik"
 	"github.com/rakyll/statik/fs"
 
 	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
 	qrcode "github.com/skip2/go-qrcode"
 	"github.com/stianeikeland/go-rpio/v4"
@@ -345,13 +347,58 @@ func stats() {
 		return
 	}
 
-	var cpuUsage, _ = cpu.Percent(0, false)
-	v, _ := mem.VirtualMemory()
-
+	// create new context and clear screen
 	dc := gg.NewContext(SCREEN_SIZE, SCREEN_SIZE)
 	dc.DrawRectangle(0, 0, 240, 240)
 	dc.SetColor(color.RGBA{51, 51, 51, 255})
 	dc.Fill()
+
+	var DISK_BAR_WIDTH float64 = 200
+	var DISK_BAR_HEIGHT float64 = 105
+	// outline
+	dc.DrawRoundedRectangle(20, DISK_BAR_HEIGHT, DISK_BAR_WIDTH, 40, 5)
+	dc.SetColor(color.RGBA{160, 160, 160, 255})
+	dc.Fill()
+	// inside
+	dc.DrawRoundedRectangle(21, DISK_BAR_HEIGHT+1, DISK_BAR_WIDTH-2, 38, 4)
+	dc.SetColor(color.RGBA{51, 51, 51, 255})
+	dc.Fill()
+
+	parts, _ := disk.Partitions(false)
+	var found = false
+	for _, p := range parts {
+		device := p.Mountpoint
+		if device != "/var/lib/rancher" {
+			continue
+		}
+		s, _ := disk.Usage(device)
+
+		if s.Total == 0 {
+			continue
+		}
+
+		percent := fmt.Sprintf("%s / %s",
+			human.Bytes(s.Used),
+			human.Bytes(s.Total),
+		)
+
+		// usage
+		dc.DrawRoundedRectangle(21, DISK_BAR_HEIGHT+1, (s.UsedPercent/100.0)*(DISK_BAR_WIDTH-2), 38, 4)
+		dc.SetColor(color.RGBA{70, 70, 70, 255})
+		dc.Fill()
+
+		dc.SetColor(color.RGBA{160, 160, 160, 255})
+		textOnContext(dc, 120, 125, 22, percent, false, gg.AlignCenter)
+		found = true
+	}
+	if !found {
+		dc.SetColor(color.RGBA{160, 160, 160, 255})
+		textOnContext(dc, 120, 125, 22, "No SSD installed", false, gg.AlignCenter)
+	}
+
+	var cpuUsage, _ = cpu.Percent(0, false)
+	v, _ := mem.VirtualMemory()
+
 	dc.SetColor(color.RGBA{160, 160, 160, 255})
 	textOnContext(dc, 70, 28, 22, "CPU", false, gg.AlignCenter)
 	cpuPercent := cpuUsage[0]
@@ -438,7 +485,8 @@ func main() {
 		backlight.High()   // Set pin High
 		setFramebuffer()
 		splash()
-		time.AfterFunc(6*time.Second, stats)
+		// time.AfterFunc(6*time.Second, stats)
+		time.AfterFunc(0*time.Second, stats)
 	} else {
 		fmt.Fprintf(os.Stderr, "Could not connect to framebuffer screen: %v\n", err)
 	}
