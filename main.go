@@ -152,7 +152,7 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 		responseData.K3sMount = strings.Replace(strings.Trim(strings.Trim(findMntStdout.String(), "\n"), " "), "\t", " ", -1)
 	}
 
-	lvs := exec.Command("lvs", "--reportformat", "json", "--units=G")
+	lvs := exec.Command("lvs", "--reportformat", "json", "--units=b")
 	var lvsStdout bytes.Buffer
 	var lvsStderr bytes.Buffer
 	lvs.Stdout = &lvsStdout
@@ -162,9 +162,9 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(os.Stderr, "Failed to run lvs command: %v\n", lvsStderr.String())
 	} else {
 		responseData.Lvs = strings.Replace(strings.Trim(strings.Trim(lvsStdout.String(), "\n"), " "), "\t", " ", -1)
-	}
+	
 
-	pvs := exec.Command("pvs", "--reportformat", "json", "--units=G")
+	pvs := exec.Command("pvs", "--reportformat", "json", "--units=b")
 	var pvsStdout bytes.Buffer
 	var pvsStderr bytes.Buffer
 	pvs.Stdout = &pvsStdout
@@ -184,6 +184,9 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 			if strings.HasPrefix(f.Name(), "loop") {
 				continue
 			}
+			if strings.HasPrefix(f.Name(), "ram") {
+				continue
+			}
 
 			responseData.BlockDevices = append(responseData.BlockDevices, f.Name())
 
@@ -198,7 +201,6 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 				responseData.Models = append(responseData.Models, fmt.Sprintf("%v %v", f.Name(), modelData))
 			}
 
-			fmt.Println("calling parted " + fmt.Sprintf("/dev/%v", f.Name()))
 			partedOutputRaw := exec.Command("timeout", "2", "parted", fmt.Sprintf("/dev/%v", f.Name()), "print", "-m")
 			var partedOutputStdout bytes.Buffer
 			partedOutputRaw.Stdout = &partedOutputStdout
