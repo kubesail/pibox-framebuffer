@@ -44,7 +44,6 @@ type RGB struct {
 }
 
 func rgb(w http.ResponseWriter, req *http.Request) {
-
 	var c RGB
 	err := json.NewDecoder(req.Body).Decode(&c)
 	if err != nil {
@@ -189,7 +188,7 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(os.Stderr, "Failed to run lvs command: %v\n", lvsStderr.String())
 	} else {
 		responseData.Lvs = strings.Replace(strings.Trim(strings.Trim(lvsStdout.String(), "\n"), " "), "\t", " ", -1)
-
+	}
 
 	pvs := exec.Command("pvs", "--reportformat", "json", "--units=b")
 	var pvsStdout bytes.Buffer
