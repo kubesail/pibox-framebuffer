@@ -103,19 +103,34 @@ func qr(w http.ResponseWriter, req *http.Request) {
 }
 
 type DiskStatsResponse struct {
-	BlockDevices []string
-	Partitions   []string
-	Models       []string
-	K3sUsage     []string
-	Lvs          string
-	Pvs          string
-	K3sVersion   string
-	K3sMount     string
+	BlockDevices    []string
+	Partitions      []string
+	Models          []string
+	RootUsage       []string
+	K3sUsage        []string
+	K3sStorageUsage []string
+	Lvs             string
+	Pvs             string
+	K3sVersion      string
+	K3sMount        string
 }
 
 func diskStats(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var responseData DiskStatsResponse
+
+	rootProbe := exec.Command("du", "-b", "--max-depth=1", "/")
+	var rootProbeStdout bytes.Buffer
+	var rootProbeStderr bytes.Buffer
+	rootProbe.Stdout = &rootProbeStdout
+	rootProbe.Stderr = &rootProbeStderr
+	rootProbeErr := rootProbe.Run()
+	if rootProbeErr != nil {
+		fmt.Fprintf(os.Stderr, "Failed to run du command: %v\n", rootProbeStderr.String())
+	} else {
+		responseData.RootUsage = strings.Split(strings.Replace(strings.Trim(strings.Trim(rootProbeStdout.String(), "\n"), " "), "\t", " ", -1), "\n")
+	}
+
 	k3sStorageProbe := exec.Command("du", "-b", "--max-depth=1", "/var/lib/rancher/k3s/storage/")
 	var k3sStorageProbeStdout bytes.Buffer
 	var k3sStorageProbeStderr bytes.Buffer
@@ -125,7 +140,19 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to run du command: %v\n", k3sStorageProbeStderr.String())
 	} else {
-		responseData.K3sUsage = strings.Split(strings.Replace(strings.Trim(strings.Trim(k3sStorageProbeStdout.String(), "\n"), " "), "\t", " ", -1), "\n")
+		responseData.K3sStorageUsage = strings.Split(strings.Replace(strings.Trim(strings.Trim(k3sStorageProbeStdout.String(), "\n"), " "), "\t", " ", -1), "\n")
+	}
+
+	k3sProbe := exec.Command("du", "-b", "--max-depth=1", "/var/lib/rancher/k3s/")
+	var k3sProbeStdout bytes.Buffer
+	var k3sProbeStderr bytes.Buffer
+	k3sProbe.Stdout = &k3sProbeStdout
+	k3sProbe.Stderr = &k3sProbeStderr
+	k3sProbeErr := k3sProbe.Run()
+	if k3sProbeErr != nil {
+		fmt.Fprintf(os.Stderr, "Failed to run du command: %v\n", k3sProbeStderr.String())
+	} else {
+		responseData.K3sUsage = strings.Split(strings.Replace(strings.Trim(strings.Trim(k3sProbeStdout.String(), "\n"), " "), "\t", " ", -1), "\n")
 	}
 
 	findK3s := exec.Command("k3s", "--version")
@@ -162,7 +189,7 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(os.Stderr, "Failed to run lvs command: %v\n", lvsStderr.String())
 	} else {
 		responseData.Lvs = strings.Replace(strings.Trim(strings.Trim(lvsStdout.String(), "\n"), " "), "\t", " ", -1)
-	
+
 
 	pvs := exec.Command("pvs", "--reportformat", "json", "--units=b")
 	var pvsStdout bytes.Buffer
