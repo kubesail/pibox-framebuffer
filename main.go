@@ -101,6 +101,21 @@ func qr(w http.ResponseWriter, req *http.Request) {
 	statsOff = true
 }
 
+func shell(app string, args []string) string {
+	cmd := exec.Command(app, args...)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to run \"%v\": %v\n", app, stderr.String())
+		return ""
+	} else {
+		return strings.Replace(strings.Trim(strings.Trim(stdout.String(), "\n"), " "), "\t", " ", -1)
+	}
+}
+
 type DiskStatsResponse struct {
 	BlockDevices    []string
 	Partitions      []string
@@ -112,95 +127,22 @@ type DiskStatsResponse struct {
 	Pvs             string
 	K3sVersion      string
 	K3sMount        string
+	MountPoints     string
 }
 
 func diskStats(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var responseData DiskStatsResponse
 
-	rootProbe := exec.Command("df", "/")
-	var rootProbeStdout bytes.Buffer
-	var rootProbeStderr bytes.Buffer
-	rootProbe.Stdout = &rootProbeStdout
-	rootProbe.Stderr = &rootProbeStderr
-	rootProbeErr := rootProbe.Run()
-	if rootProbeErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to run df command: %v\n", rootProbeStderr.String())
-	} else {
-		responseData.RootUsage = strings.Split(strings.Replace(strings.Trim(strings.Trim(rootProbeStdout.String(), "\n"), " "), "\t", " ", -1), "\n")
-	}
-
-	k3sProbe := exec.Command("df", "/var/lib/rancher/k3s/")
-	var k3sProbeStdout bytes.Buffer
-	var k3sProbeStderr bytes.Buffer
-	k3sProbe.Stdout = &k3sProbeStdout
-	k3sProbe.Stderr = &k3sProbeStderr
-	k3sProbeErr := k3sProbe.Run()
-	if k3sProbeErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to run df command: %v\n", k3sProbeStderr.String())
-	} else {
-		responseData.K3sUsage = strings.Split(strings.Replace(strings.Trim(strings.Trim(k3sProbeStdout.String(), "\n"), " "), "\t", " ", -1), "\n")
-	}
-
-	k3sStorageProbe := exec.Command("du", "-b", "--max-depth=1", "/var/lib/rancher/k3s/storage/")
-	var k3sStorageProbeStdout bytes.Buffer
-	var k3sStorageProbeStderr bytes.Buffer
-	k3sStorageProbe.Stdout = &k3sStorageProbeStdout
-	k3sStorageProbe.Stderr = &k3sStorageProbeStderr
-	err := k3sStorageProbe.Run()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to run df command: %v\n", k3sStorageProbeStderr.String())
-	} else {
-		responseData.K3sStorageUsage = strings.Split(strings.Replace(strings.Trim(strings.Trim(k3sStorageProbeStdout.String(), "\n"), " "), "\t", " ", -1), "\n")
-	}
-
-	findK3s := exec.Command("k3s", "--version")
-	var findK3sStdout bytes.Buffer
-	var findK3sStderr bytes.Buffer
-	findK3s.Stdout = &findK3sStdout
-	findK3s.Stderr = &findK3sStderr
-	findK3sErr := findK3s.Run()
-	if findK3sErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to run k3s version command: %v\n", findK3sStderr.String())
-	} else {
-		responseData.K3sVersion = strings.Replace(strings.Trim(strings.Trim(findK3sStdout.String(), "\n"), " "), "\t", " ", -1)
-	}
-
-	findMnt := exec.Command("findmnt", "-l", "/var/lib/rancher", "-J")
-	var findMntStdout bytes.Buffer
-	var findMntStderr bytes.Buffer
-	findMnt.Stdout = &findMntStdout
-	findMnt.Stderr = &findMntStderr
-	findMntErr := findMnt.Run()
-	if findMntErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to run findmnt command: %v\n", findMntStderr.String())
-	} else {
-		responseData.K3sMount = strings.Replace(strings.Trim(strings.Trim(findMntStdout.String(), "\n"), " "), "\t", " ", -1)
-	}
-
-	lvs := exec.Command("lvs", "--reportformat", "json", "--units=b")
-	var lvsStdout bytes.Buffer
-	var lvsStderr bytes.Buffer
-	lvs.Stdout = &lvsStdout
-	lvs.Stderr = &lvsStderr
-	lvsErr := lvs.Run()
-	if lvsErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to run lvs command: %v\n", lvsStderr.String())
-	} else {
-		responseData.Lvs = strings.Replace(strings.Trim(strings.Trim(lvsStdout.String(), "\n"), " "), "\t", " ", -1)
-	}
-
-	pvs := exec.Command("pvs", "--reportformat", "json", "--units=b")
-	var pvsStdout bytes.Buffer
-	var pvsStderr bytes.Buffer
-	pvs.Stdout = &pvsStdout
-	pvs.Stderr = &pvsStderr
-	pvsErr := pvs.Run()
-	if pvsErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to run pvs command: %v\n", pvsStderr.String())
-	} else {
-		responseData.Pvs = strings.Replace(strings.Trim(strings.Trim(pvsStdout.String(), "\n"), " "), "\t", " ", -1)
-	}
+	responseData.RootUsage = strings.Split(shell("df", strings.Split("/", " ")), "\n")
+	responseData.K3sUsage = strings.Split(shell("df", strings.Split("/var/lib/rancher/k3s/", " ")), "\n")
+	responseData.K3sStorageUsage = strings.Split(shell("du", strings.Split("-b --max-depth=1 /var/lib/rancher/k3s/storage/", " ")), "\n")
+	responseData.K3sVersion = shell("k3s", strings.Split("--version", " "))
+	mountPointsArgs := []string{"-c"}
+	responseData.MountPoints = shell("bash", append(mountPointsArgs, "for i in $(ls -1 /dev/sda*); do findmnt -l $i -J; done"))
+	responseData.K3sMount = shell("findmnt", strings.Split("-l /var/lib/rancher -J", " "))
+	responseData.Lvs = shell("lvs", strings.Split("--reportformat json --units=b", " "))
+	responseData.Pvs = shell("pvs", strings.Split("--reportformat json --units=b", " "))
 
 	files, err := ioutil.ReadDir("/sys/block")
 	if err != nil {
