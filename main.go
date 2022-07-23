@@ -138,9 +138,7 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 	responseData.K3sUsage = strings.Split(shell("df", strings.Split("/var/lib/rancher/k3s/", " ")), "\n")
 	responseData.K3sStorageUsage = strings.Split(shell("du", strings.Split("-b --max-depth=1 /var/lib/rancher/k3s/storage/", " ")), "\n")
 	responseData.K3sVersion = shell("k3s", strings.Split("--version", " "))
-	mountPointsArgs := []string{"-c"}
-	responseData.MountPoints = shell("bash", append(mountPointsArgs, "for i in $(ls -1 /dev/sd*); do findmnt -l $i -J; done"))
-	responseData.K3sMount = shell("findmnt", strings.Split("-l /var/lib/rancher -J", " "))
+	responseData.MountPoints = shell("findmnt", strings.Split("-s -J", " "))
 	responseData.Lvs = shell("lvs", strings.Split("--reportformat json --units=b", " "))
 	responseData.Pvs = shell("pvs", strings.Split("--reportformat json --units=b", " "))
 
