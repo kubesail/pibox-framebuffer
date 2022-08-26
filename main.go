@@ -387,7 +387,7 @@ func stats() {
 	}
 	if !found {
 		dc.SetColor(color.RGBA{160, 160, 160, 255})
-		textOnContext(dc, 120, 125, 22, "No SSD installed", false, gg.AlignCenter)
+		textOnContext(dc, 120, 125, 22, "No SSD configured", false, gg.AlignCenter)
 	}
 
 	var cpuUsage, _ = cpu.Percent(0, false)
