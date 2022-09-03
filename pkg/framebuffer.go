@@ -471,12 +471,13 @@ func (b *PiboxFrameBuffer) Stats() {
 	b.flushTextToScreen(dc)
 }
 
-func NewFrameBuffer(screenSize int, diskMountPrefix string) *PiboxFrameBuffer {
+func NewFrameBuffer(screenSize int, enableStats bool, diskMountPrefix string) *PiboxFrameBuffer {
 	buf := &PiboxFrameBuffer{
 		config: &Config{
 			screenSize:      screenSize,
 			diskMountPrefix: diskMountPrefix,
 		},
+		enableStats: enableStats,
 	}
 	buf.setFramebuffer()
 	return buf

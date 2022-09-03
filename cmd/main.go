@@ -14,8 +14,21 @@ import (
 	"github.com/stianeikeland/go-rpio/v4"
 )
 
+const DefaultDiskMountPrefix = "/var/lib/rancher"
+const DefaultListenSocket = "/var/run/pibox/framebuffer.sock"
+
 func main() {
-	buffer := pfb.NewFrameBuffer(pfb.DefaultScreenSize, "/var/lib/rancher")
+	listenSocket, ok := os.LookupEnv("LISTEN_SOCKET")
+	if !ok {
+		listenSocket = DefaultListenSocket
+	}
+
+	diskMountPrefix, ok := os.LookupEnv("DISK_MOUNT_PREFIX")
+	if !ok {
+		diskMountPrefix = DefaultDiskMountPrefix
+	}
+
+	buffer := pfb.NewFrameBuffer(pfb.DefaultScreenSize, true, diskMountPrefix)
 
 	err := rpio.Open()
 	if err == nil {
@@ -44,10 +57,6 @@ func main() {
 	http.HandleFunc("/exit", exit)
 
 	os.MkdirAll("/var/run/pibox/", 0755)
-	listenSocket := os.Getenv("LISTEN_SOCKET")
-	if listenSocket == "" {
-		listenSocket = "/var/run/pibox/framebuffer.sock"
-	}
 	os.Remove(listenSocket)
 	fmt.Printf("Listening on socket: %s\n", listenSocket)
 	listener, err := net.Listen("unix", listenSocket)
@@ -57,6 +66,7 @@ func main() {
 		return
 	}
 	defer listener.Close()
+
 	if err = http.Serve(listener, nil); err != nil {
 		log.Fatalf("Could not start HTTP server: %v", err)
 	}
