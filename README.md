@@ -9,7 +9,7 @@ The PiBox's display server. Lightweight Go binary to draw images to the framebuf
 You can make requests to the framebuffer service to write arbitrary text.
 
 ```bash
-curl --get --unix-socket /var/run/pibox/framebuffer.sock "http://localhost/text?content=hello+world&background=00ff00"
+curl -XGET --unix-socket /var/run/pibox/framebuffer.sock "http://localhost/text?content=hello+world&background=00ff00"
 ```
 
 Here's how you might write the output of the `date` command to the PiBox screen:
@@ -17,7 +17,7 @@ Here's how you might write the output of the `date` command to the PiBox screen:
 ```bash
 #!/bin/bash
 SCRIPT_OUTPUT=$(date "+%A, %b %-d %l:%m")
-curl --get --unix-socket /var/run/pibox/framebuffer.sock http://localhost/text \
+curl -XGET --unix-socket /var/run/pibox/framebuffer.sock http://localhost/text \
   --data-urlencode "content=${SCRIPT_OUTPUT}" \
   --data-urlencode "color=000000" \
   --data-urlencode "background=ffffff" \
