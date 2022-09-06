@@ -55,3 +55,11 @@ curl --unix-socket /var/run/pibox/framebuffer.sock http://localhost/rgb -XPOST -
 
     go get github.com/rakyll/statik
     statik -src=img
+    
+### Via script
+
+  Checkout https://github.com/kubesail/pibox-os/blob/main/update-framebuffer.sh for our automated install process.
+  
+ ## Note to the reader:
+ 
+ This is under heavy construction! We apologize for the mess, and for it not being up to our usually quality standards. Pull requests and issues are very welcome! Thank you for your patience! As always, if you have any questions or comments, please join us in chat at https://discord.gg/N3zNdp7jHc
