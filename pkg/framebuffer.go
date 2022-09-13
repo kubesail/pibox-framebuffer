@@ -1,4 +1,4 @@
-package main
+package pkg
 
 import (
 	"bytes"
@@ -22,20 +22,29 @@ import (
 	human "github.com/dustin/go-humanize"
 	"github.com/fogleman/gg"
 	"github.com/gonutz/framebuffer"
-	_ "github.com/kubesail/pibox-framebuffer/statik"
 	"github.com/rakyll/statik/fs"
-
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
-	qrcode "github.com/skip2/go-qrcode"
-	"github.com/stianeikeland/go-rpio/v4"
+	"github.com/skip2/go-qrcode"
 )
 
-var fbNum string
-var statsOff = false
+const DefaultScreenSize = 240
 
-const SCREEN_SIZE = 240
+type PiboxFrameBuffer struct {
+	config *Config
+
+	// enableStats will cycle the statistics screen if set to true
+	enableStats bool
+}
+
+func (b *PiboxFrameBuffer) openFrameBuffer() *framebuffer.Device {
+	fb, err := framebuffer.Open("/dev/" + b.config.fbNum)
+	if err != nil {
+		panic(err)
+	}
+	return fb
+}
 
 type RGB struct {
 	R uint8
@@ -43,7 +52,7 @@ type RGB struct {
 	B uint8
 }
 
-func rgb(w http.ResponseWriter, req *http.Request) {
+func (b *PiboxFrameBuffer) RGB(w http.ResponseWriter, req *http.Request) {
 	var c RGB
 	err := json.NewDecoder(req.Body).Decode(&c)
 	if err != nil {
@@ -51,23 +60,23 @@ func rgb(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	drawSolidColor(c)
+	b.DrawSolidColor(c)
 	fmt.Fprintf(w, "parsed color: R%v G%v B%v\n", c.R, c.G, c.B)
 	fmt.Fprintf(w, "wrote to framebuffer!\n")
 }
 
-func drawSolidColor(c RGB) {
-	fb, err := framebuffer.Open("/dev/" + fbNum)
+func (b *PiboxFrameBuffer) DrawSolidColor(c RGB) {
+	fb, err := framebuffer.Open("/dev/" + b.config.fbNum)
 	if err != nil {
 		panic(err)
 	}
 	defer fb.Close()
 	magenta := image.NewUniform(color.RGBA{c.R, c.G, c.B, 255})
 	draw.Draw(fb, fb.Bounds(), magenta, image.Point{}, draw.Src)
-	statsOff = true
+	b.enableStats = false
 }
 
-func qr(w http.ResponseWriter, req *http.Request) {
+func (b *PiboxFrameBuffer) QR(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	content, present := query["content"]
 	if !present {
@@ -75,7 +84,7 @@ func qr(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fb, err := framebuffer.Open("/dev/" + fbNum)
+	fb, err := framebuffer.Open("/dev/" + b.config.fbNum)
 	if err != nil {
 		panic(err)
 	}
@@ -98,7 +107,21 @@ func qr(w http.ResponseWriter, req *http.Request) {
 		draw.Src)
 
 	fmt.Println("QR Code printed to screen")
-	statsOff = true
+	b.enableStats = false
+}
+
+type DiskStatsResponse struct {
+	BlockDevices    []string
+	Partitions      []string
+	Models          []string
+	RootUsage       []string
+	K3sUsage        []string
+	K3sStorageUsage []string
+	Lvs             string
+	Pvs             string
+	K3sVersion      string
+	K3sMount        string
+	MountPoints     string
 }
 
 func shell(app string, args []string) string {
@@ -116,21 +139,7 @@ func shell(app string, args []string) string {
 	}
 }
 
-type DiskStatsResponse struct {
-	BlockDevices    []string
-	Partitions      []string
-	Models          []string
-	RootUsage       []string
-	K3sUsage        []string
-	K3sStorageUsage []string
-	Lvs             string
-	Pvs             string
-	K3sVersion      string
-	K3sMount        string
-	MountPoints     string
-}
-
-func diskStats(w http.ResponseWriter, req *http.Request) {
+func (b *PiboxFrameBuffer) DiskStats(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var responseData DiskStatsResponse
 
@@ -184,14 +193,14 @@ func diskStats(w http.ResponseWriter, req *http.Request) {
 	json.NewEncoder(w).Encode(responseData)
 }
 
-func textRequest(w http.ResponseWriter, req *http.Request) {
+func (b *PiboxFrameBuffer) TextRequest(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	content := query["content"]
 	if len(content) == 0 {
 		content = append(content, "no content param")
 	}
 	background := query["background"]
-	dc := gg.NewContext(SCREEN_SIZE, SCREEN_SIZE)
+	dc := gg.NewContext(b.config.screenSize, b.config.screenSize)
 	if len(background) == 1 {
 		dc.SetHexColor(background[0])
 		dc.DrawRectangle(0, 0, 240, 240)
@@ -209,22 +218,22 @@ func textRequest(w http.ResponseWriter, req *http.Request) {
 	}
 	sizeInt, _ := strconv.Atoi(size[0])
 	x := query["x"]
-	xInt := SCREEN_SIZE / 2
+	xInt := b.config.screenSize / 2
 	if len(x) > 0 {
 		xInt, _ = strconv.Atoi(x[0])
 	}
 	y := query["y"]
-	yInt := SCREEN_SIZE / 2
+	yInt := b.config.screenSize / 2
 	if len(y) > 0 {
 		yInt, _ = strconv.Atoi(y[0])
 	}
 
-	textOnContext(dc, float64(xInt), float64(yInt), float64(sizeInt), content[0], true, gg.AlignCenter)
-	flushTextToScreen(dc)
-	statsOff = true
+	b.TextOnContext(dc, float64(xInt), float64(yInt), float64(sizeInt), content[0], true, gg.AlignCenter)
+	b.flushTextToScreen(dc)
+	b.enableStats = false
 }
 
-func textOnContext(dc *gg.Context, x float64, y float64, size float64, content string, bold bool, align gg.Align) {
+func (b *PiboxFrameBuffer) TextOnContext(dc *gg.Context, x float64, y float64, size float64, content string, bold bool, align gg.Align) {
 	const S = 240
 	// dc.SetRGB(float64(c.R), float64(c.G), float64(c.B))
 	if bold {
@@ -240,19 +249,14 @@ func textOnContext(dc *gg.Context, x float64, y float64, size float64, content s
 	// dc.Clip()
 }
 
-func flushTextToScreen(dc *gg.Context) {
-	fb, err := framebuffer.Open("/dev/" + fbNum)
-	if err != nil {
-		panic(err)
-	}
+func (b *PiboxFrameBuffer) flushTextToScreen(dc *gg.Context) {
+	fb := b.openFrameBuffer()
 	draw.Draw(fb, fb.Bounds(), dc.Image(), image.Point{}, draw.Src)
+	defer fb.Close()
 }
 
-func drawImage(w http.ResponseWriter, req *http.Request) {
-	fb, err := framebuffer.Open("/dev/" + fbNum)
-	if err != nil {
-		panic(err)
-	}
+func (b *PiboxFrameBuffer) DrawImage(w http.ResponseWriter, req *http.Request) {
+	fb := b.openFrameBuffer()
 	defer fb.Close()
 	img, _, err := image.Decode(req.Body)
 	if err != nil {
@@ -260,14 +264,11 @@ func drawImage(w http.ResponseWriter, req *http.Request) {
 	}
 	draw.Draw(fb, fb.Bounds(), img, image.Point{}, draw.Src)
 	fmt.Fprintf(w, "Image drawn\n")
-	statsOff = true
+	b.enableStats = false
 }
 
-func drawGIF(w http.ResponseWriter, req *http.Request) {
-	fb, err := framebuffer.Open("/dev/" + fbNum)
-	if err != nil {
-		panic(err)
-	}
+func (b *PiboxFrameBuffer) DrawGIF(w http.ResponseWriter, req *http.Request) {
+	fb := b.openFrameBuffer()
 	defer fb.Close()
 	imgGif, err := gif.DecodeAll(req.Body)
 	if err != nil {
@@ -278,17 +279,16 @@ func drawGIF(w http.ResponseWriter, req *http.Request) {
 		time.Sleep(time.Millisecond * 3 * time.Duration(imgGif.Delay[i]))
 	}
 	fmt.Fprintf(w, "GIF drawn\n")
-	statsOff = true
+	b.enableStats = false
 }
 
-func exit(w http.ResponseWriter, req *http.Request) {
+func (b *PiboxFrameBuffer) Exit() {
 	fmt.Println("Received exit request, shutting down...")
 	c := RGB{R: 0, G: 0, B: 255}
-	drawSolidColor(c)
-	os.Exit(0)
+	b.DrawSolidColor(c)
 }
 
-func setFramebuffer() {
+func (b *PiboxFrameBuffer) setFramebuffer() {
 	items, _ := ioutil.ReadDir("/sys/class/graphics")
 	for _, item := range items {
 		data, err := ioutil.ReadFile("/sys/class/graphics/" + item.Name() + "/name")
@@ -300,17 +300,17 @@ func setFramebuffer() {
 			return
 		}
 		if string(data) == "fb_st7789v\n" {
-			fbNum = item.Name()
-			fmt.Println("Displaying on " + fbNum)
+			// Update the config accordingly
+			b.config.fbNum = item.Name()
+			fmt.Println("Displaying on " + b.config.fbNum)
 		}
 	}
 }
 
-func splash() {
-	fb, err := framebuffer.Open("/dev/" + fbNum)
-	if err != nil {
-		panic(err)
-	}
+func (b *PiboxFrameBuffer) Splash() {
+	fb := b.openFrameBuffer()
+	defer fb.Close()
+
 	statikFS, err := fs.New()
 	if err != nil {
 		panic(err)
@@ -324,25 +324,25 @@ func splash() {
 		panic(err)
 	}
 	draw.Draw(fb, fb.Bounds(), img, image.ZP, draw.Src)
-	dc := gg.NewContext(SCREEN_SIZE, SCREEN_SIZE)
+	dc := gg.NewContext(b.config.screenSize, b.config.screenSize)
 	dc.SetColor(color.RGBA{100, 100, 100, 255})
-	textOnContext(dc, 120, 210, 20, "starting services", true, gg.AlignCenter)
-	flushTextToScreen(dc)
+	b.TextOnContext(dc, 120, 210, 20, "starting services", true, gg.AlignCenter)
+	b.flushTextToScreen(dc)
 }
 
-func statsOn(w http.ResponseWriter, req *http.Request) {
+func (b *PiboxFrameBuffer) EnableStats(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(w, "Stats on\n")
-	statsOff = false
+	b.enableStats = true
 }
 
-func stats() {
-	defer time.AfterFunc(3*time.Second, stats)
-	if statsOff {
+func (b *PiboxFrameBuffer) Stats() {
+	defer time.AfterFunc(3*time.Second, b.Stats)
+	if !b.enableStats {
 		return
 	}
 
 	// create new context and clear screen
-	dc := gg.NewContext(SCREEN_SIZE, SCREEN_SIZE)
+	dc := gg.NewContext(b.config.screenSize, b.config.screenSize)
 	dc.DrawRectangle(0, 0, 240, 240)
 	dc.SetColor(color.RGBA{51, 51, 51, 255})
 	dc.Fill()
@@ -362,7 +362,7 @@ func stats() {
 	var found = false
 	for _, p := range parts {
 		device := p.Mountpoint
-		if device != "/var/lib/rancher" {
+		if !strings.HasPrefix(device, b.config.diskMountPrefix) {
 			continue
 		}
 		s, _ := disk.Usage(device)
@@ -382,19 +382,19 @@ func stats() {
 		dc.Fill()
 
 		dc.SetColor(color.RGBA{160, 160, 160, 255})
-		textOnContext(dc, 120, 125, 22, percent, false, gg.AlignCenter)
+		b.TextOnContext(dc, 120, 125, 22, percent, false, gg.AlignCenter)
 		found = true
 	}
 	if !found {
 		dc.SetColor(color.RGBA{160, 160, 160, 255})
-		textOnContext(dc, 120, 125, 22, "No SSD configured", false, gg.AlignCenter)
+		b.TextOnContext(dc, 120, 125, 22, "No SSD configured", false, gg.AlignCenter)
 	}
 
 	var cpuUsage, _ = cpu.Percent(0, false)
 	v, _ := mem.VirtualMemory()
 
 	dc.SetColor(color.RGBA{160, 160, 160, 255})
-	textOnContext(dc, 70, 28, 22, "CPU", false, gg.AlignCenter)
+	b.TextOnContext(dc, 70, 28, 22, "CPU", false, gg.AlignCenter)
 	cpuPercent := cpuUsage[0]
 	colorCpu := color.RGBA{183, 225, 205, 255}
 	if cpuPercent > 40 {
@@ -404,9 +404,9 @@ func stats() {
 		colorCpu = color.RGBA{244, 199, 195, 255}
 	}
 	dc.SetColor(colorCpu)
-	textOnContext(dc, 70, 66, 30, fmt.Sprintf("%v%%", math.Round(cpuPercent)), true, gg.AlignCenter)
+	b.TextOnContext(dc, 70, 66, 30, fmt.Sprintf("%v%%", math.Round(cpuPercent)), true, gg.AlignCenter)
 	dc.SetColor(color.RGBA{160, 160, 160, 255})
-	textOnContext(dc, 170, 28, 22, "MEM", false, gg.AlignCenter)
+	b.TextOnContext(dc, 170, 28, 22, "MEM", false, gg.AlignCenter)
 	colorMem := color.RGBA{183, 225, 205, 255}
 	if cpuPercent > 40 {
 		colorMem = color.RGBA{252, 232, 178, 255}
@@ -415,13 +415,13 @@ func stats() {
 		colorMem = color.RGBA{244, 199, 195, 255}
 	}
 	dc.SetColor(colorMem)
-	textOnContext(dc, 170, 66, 30, fmt.Sprintf("%v%%", math.Round(v.UsedPercent)), true, gg.AlignCenter)
+	b.TextOnContext(dc, 170, 66, 30, fmt.Sprintf("%v%%", math.Round(v.UsedPercent)), true, gg.AlignCenter)
 
 	interfaces, _ := net.Interfaces()
 	for _, inter := range interfaces {
 		if inter.Name == "eth0" {
 			dc.SetColor(color.RGBA{160, 160, 160, 255})
-			textOnContext(dc, 130, 180, 22, "eth", false, gg.AlignLeft)
+			b.TextOnContext(dc, 130, 180, 22, "eth", false, gg.AlignLeft)
 			addrs, _ := inter.Addrs()
 			var ipv4 = ""
 			for _, addr := range addrs {
@@ -432,7 +432,7 @@ func stats() {
 			}
 			if ipv4 == "" {
 				dc.SetColor(color.RGBA{100, 100, 100, 255})
-				textOnContext(dc, 110, 180, 22, "Disconnected", true, gg.AlignRight)
+				b.TextOnContext(dc, 110, 180, 22, "Disconnected", true, gg.AlignRight)
 			} else {
 				w, _ := dc.MeasureString(ipv4)
 				var fontSize float64 = 26
@@ -440,11 +440,11 @@ func stats() {
 					fontSize = 22
 				}
 				dc.SetColor(color.RGBA{180, 180, 180, 255})
-				textOnContext(dc, 110, 180, fontSize, ipv4, true, gg.AlignRight)
+				b.TextOnContext(dc, 110, 180, fontSize, ipv4, true, gg.AlignRight)
 			}
 		} else if inter.Name == "wlan0" {
 			dc.SetColor(color.RGBA{180, 180, 180, 255})
-			textOnContext(dc, 130, 210, 22, "wifi", false, gg.AlignLeft)
+			b.TextOnContext(dc, 130, 210, 22, "wifi", false, gg.AlignLeft)
 			addrs, _ := inter.Addrs()
 			var ipv4 = ""
 			for _, addr := range addrs {
@@ -455,7 +455,7 @@ func stats() {
 			}
 			if ipv4 == "" {
 				dc.SetColor(color.RGBA{100, 100, 100, 255})
-				textOnContext(dc, 110, 210, 22, "Disconnected", true, gg.AlignRight)
+				b.TextOnContext(dc, 110, 210, 22, "Disconnected", true, gg.AlignRight)
 			} else {
 				w, _ := dc.MeasureString(ipv4)
 				var fontSize float64 = 26
@@ -463,52 +463,22 @@ func stats() {
 					fontSize = 22
 				}
 				dc.SetColor(color.RGBA{180, 180, 180, 255})
-				textOnContext(dc, 110, 210, fontSize, ipv4, true, gg.AlignRight)
+				b.TextOnContext(dc, 110, 210, fontSize, ipv4, true, gg.AlignRight)
 			}
 
 		}
 	}
-	flushTextToScreen(dc)
+	b.flushTextToScreen(dc)
 }
 
-func main() {
-	err := rpio.Open()
-	if err == nil {
-		backlight := rpio.Pin(22)
-		backlight.Output() // Output mode
-		backlight.High()   // Set pin High
-		setFramebuffer()
-		splash()
-		// time.AfterFunc(6*time.Second, stats)
-		time.AfterFunc(0*time.Second, stats)
-	} else {
-		fmt.Fprintf(os.Stderr, "Could not connect to framebuffer screen: %v\n", err)
+func NewFrameBuffer(screenSize int, enableStats bool, diskMountPrefix string) *PiboxFrameBuffer {
+	buf := &PiboxFrameBuffer{
+		config: &Config{
+			screenSize:      screenSize,
+			diskMountPrefix: diskMountPrefix,
+		},
+		enableStats: enableStats,
 	}
-
-	http.HandleFunc("/rgb", rgb)
-	http.HandleFunc("/image", drawImage)
-	http.HandleFunc("/gif", drawGIF)
-	http.HandleFunc("/text", textRequest)
-	http.HandleFunc("/stats/on", statsOn)
-	http.HandleFunc("/qr", qr)
-	http.HandleFunc("/disk-stats", diskStats)
-	http.HandleFunc("/exit", exit)
-
-	os.MkdirAll("/var/run/pibox/", 0755)
-	listenSocket := os.Getenv("LISTEN_SOCKET")
-	if listenSocket == "" {
-		listenSocket = "/var/run/pibox/framebuffer.sock"
-	}
-	os.Remove(listenSocket)
-	fmt.Printf("Listening on socket: %s\n", listenSocket)
-	listener, err := net.Listen("unix", listenSocket)
-	os.Chmod(listenSocket, 0777)
-	if err != nil {
-		log.Fatalf("Could not listen on %s: %v", listenSocket, err)
-		return
-	}
-	defer listener.Close()
-	if err = http.Serve(listener, nil); err != nil {
-		log.Fatalf("Could not start HTTP server: %v", err)
-	}
+	buf.setFramebuffer()
+	return buf
 }
