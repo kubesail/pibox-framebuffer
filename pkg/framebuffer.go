@@ -19,7 +19,7 @@ import (
 
 	human "github.com/dustin/go-humanize"
 	"github.com/fogleman/gg"
-	//"github.com/rakyll/statik/fs"
+	"github.com/rakyll/statik/fs"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
@@ -41,7 +41,7 @@ func (b *PiboxFrameBuffer) openFrameBuffer() (*display.Display) {
 	if err != nil {
 		panic(err)
 	}
-	fb.Rotate(display.ROTATION_180)
+	fb.Rotate(display.ROTATION_270)
 	// defer fb.Close()
 	return fb
 }
@@ -286,25 +286,25 @@ func (b *PiboxFrameBuffer) Exit() {
 func (b *PiboxFrameBuffer) Splash() {
 	fb := b.openFrameBuffer()
 
-	fb.FillScreen(color.RGBA{R: 0, G: 255, B: 0, A: 255})
+	fb.FillScreen(color.RGBA{R: 0, G: 0, B: 0, A: 0})
 
-//	statikFS, err := fs.New()
-//	if err != nil {
-//		panic(err)
-//	}
-//	r, err := statikFS.Open("/pibox-splash.png")
-//	if err != nil {
-//		panic(err)
-//	}
-	// img, _, err := image.Decode(r)
-	//if err != nil {
-	//	panic(err)
-	//}
-//	fb.DrawImage(r)
-//	dc := gg.NewContext(b.config.screenSize, b.config.screenSize)
-//	dc.SetColor(color.RGBA{100, 100, 100, 255})
-//	b.TextOnContext(dc, 120, 210, 20, "starting services", true, gg.AlignCenter)
-//	b.flushTextToScreen(dc)
+	statikFS, err := fs.New()
+	if err != nil {
+		panic(err)
+	}
+	r, err := statikFS.Open("/pibox-splash.png")
+	if err != nil {
+		panic(err)
+	}
+	img, _, err := image.Decode(r)
+	if err != nil {
+		panic(err)
+	}
+	fb.DrawRAW(img)
+	dc := gg.NewContext(b.config.screenSize, b.config.screenSize)
+	dc.SetColor(color.RGBA{100, 100, 100, 255})
+	b.TextOnContext(dc, 120, 210, 20, "starting services", true, gg.AlignCenter)
+	b.flushTextToScreen(dc)
 }
 
 func (b *PiboxFrameBuffer) EnableStats(w http.ResponseWriter, req *http.Request) {

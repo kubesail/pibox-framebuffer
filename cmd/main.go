@@ -47,13 +47,13 @@ func main() {
 		os.Exit(0)
 	}
 
-//	http.HandleFunc("/rgb", buffer.RGB)
-//	http.HandleFunc("/image", buffer.DrawImage)
-//	http.HandleFunc("/gif", buffer.DrawGIF)
-//	http.HandleFunc("/text", buffer.TextRequest)
-//	http.HandleFunc("/stats/on", buffer.EnableStats)
-//	http.HandleFunc("/qr", buffer.QR)
-//	http.HandleFunc("/disk-stats", buffer.DiskStats)
+	http.HandleFunc("/rgb", buffer.RGB)
+	http.HandleFunc("/image", buffer.DrawImage)
+	http.HandleFunc("/gif", buffer.DrawGIF)
+	http.HandleFunc("/text", buffer.TextRequest)
+	http.HandleFunc("/stats/on", buffer.EnableStats)
+	http.HandleFunc("/qr", buffer.QR)
+	http.HandleFunc("/disk-stats", buffer.DiskStats)
 	http.HandleFunc("/exit", exit)
 
 	os.MkdirAll("/var/run/pibox/", 0755)
