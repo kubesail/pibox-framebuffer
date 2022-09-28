@@ -19,4 +19,6 @@ require (
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/image v0.0.0-20220321031419-a8550c1d254a
+	periph.io/x/conn/v3 v3.6.10 // indirect
+	periph.io/x/host/v3 v3.7.2 // indirect
 )

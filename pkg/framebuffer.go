@@ -27,6 +27,7 @@ import (
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
 	"github.com/skip2/go-qrcode"
+	"github.com/rubiojr/go-pirateaudio"
 )
 
 const DefaultScreenSize = 240
@@ -39,7 +40,7 @@ type PiboxFrameBuffer struct {
 }
 
 func (b *PiboxFrameBuffer) openFrameBuffer() *framebuffer.Device {
-	fb, err := framebuffer.Open("/dev/" + b.config.fbNum)
+	fb, err := display.Init()
 	if err != nil {
 		panic(err)
 	}
@@ -72,7 +73,8 @@ func (b *PiboxFrameBuffer) DrawSolidColor(c RGB) {
 	}
 	defer fb.Close()
 	magenta := image.NewUniform(color.RGBA{c.R, c.G, c.B, 255})
-	draw.Draw(fb, fb.Bounds(), magenta, image.Point{}, draw.Src)
+	// draw.Draw(fb, fb.Bounds(), magenta, image.Point{}, draw.Src)
+	fb
 	b.enableStats = false
 }
 
@@ -252,12 +254,10 @@ func (b *PiboxFrameBuffer) TextOnContext(dc *gg.Context, x float64, y float64, s
 func (b *PiboxFrameBuffer) flushTextToScreen(dc *gg.Context) {
 	fb := b.openFrameBuffer()
 	draw.Draw(fb, fb.Bounds(), dc.Image(), image.Point{}, draw.Src)
-	defer fb.Close()
 }
 
 func (b *PiboxFrameBuffer) DrawImage(w http.ResponseWriter, req *http.Request) {
 	fb := b.openFrameBuffer()
-	defer fb.Close()
 	img, _, err := image.Decode(req.Body)
 	if err != nil {
 		panic(err)
@@ -286,25 +286,6 @@ func (b *PiboxFrameBuffer) Exit() {
 	fmt.Println("Received exit request, shutting down...")
 	c := RGB{R: 0, G: 0, B: 255}
 	b.DrawSolidColor(c)
-}
-
-func (b *PiboxFrameBuffer) setFramebuffer() {
-	items, _ := ioutil.ReadDir("/sys/class/graphics")
-	for _, item := range items {
-		data, err := ioutil.ReadFile("/sys/class/graphics/" + item.Name() + "/name")
-		if item.Name() == "fbcon" {
-			continue
-		}
-		if err != nil {
-			log.Fatalf("Could not enumerate framebuffers %v", err)
-			return
-		}
-		if string(data) == "fb_st7789v\n" {
-			// Update the config accordingly
-			b.config.fbNum = item.Name()
-			fmt.Println("Displaying on " + b.config.fbNum)
-		}
-	}
 }
 
 func (b *PiboxFrameBuffer) Splash() {
@@ -479,6 +460,5 @@ func NewFrameBuffer(screenSize int, enableStats bool, diskMountPrefix string) *P
 		},
 		enableStats: enableStats,
 	}
-	buf.setFramebuffer()
 	return buf
 }
