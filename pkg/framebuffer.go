@@ -122,6 +122,7 @@ type DiskStatsResponse struct {
 	K3sVersion      string
 	K3sMount        string
 	MountPoints     string
+	Lsblk           string
 }
 
 func shell(app string, args []string) string {
@@ -150,6 +151,7 @@ func (b *PiboxFrameBuffer) DiskStats(w http.ResponseWriter, req *http.Request) {
 	responseData.MountPoints = shell("findmnt", strings.Split("-s -J -e", " "))
 	responseData.Lvs = shell("lvs", strings.Split("--reportformat json --units=b", " "))
 	responseData.Pvs = shell("pvs", strings.Split("--reportformat json --units=b", " "))
+	responseData.Lsblk = shell("lsblk", strings.Split("-b -J", " "))
 
 	files, err := ioutil.ReadDir("/sys/block")
 	if err != nil {
