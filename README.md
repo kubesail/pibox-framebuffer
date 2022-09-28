@@ -4,7 +4,7 @@ The PiBox's display server. Lightweight Go binary to draw images to the framebuf
   
 ### Installation
 
-  curl https://github.com/kubesail/pibox-os/blob/main/update-framebuffer.sh | sudo bash
+    curl https://github.com/kubesail/pibox-os/blob/main/update-framebuffer.sh | sudo bash
 
 will automatically install the latest framebuffer on your system
   
