@@ -1,7 +1,12 @@
 # pibox-framebuffer
 
 The PiBox's display server. Lightweight Go binary to draw images to the framebuffer
+  
+### Installation
 
+  curl https://github.com/kubesail/pibox-os/blob/main/update-framebuffer.sh | sudo bash
+will automatically install the latest framebuffer on your system
+  
 ## Usage
 
 ### Writing arbitrary text
@@ -55,10 +60,6 @@ curl --unix-socket /var/run/pibox/framebuffer.sock http://localhost/rgb -XPOST -
 
     go get github.com/rakyll/statik
     statik -src=img
-    
-### Via script
-
-  Checkout https://github.com/kubesail/pibox-os/blob/main/update-framebuffer.sh for our automated install process.
   
  ## Note to the reader:
  
