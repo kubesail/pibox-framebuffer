@@ -6,7 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"time"
+	// "time"
 
 	pfb "github.com/kubesail/pibox-framebuffer/pkg"
 	_ "github.com/kubesail/pibox-framebuffer/statik"
@@ -37,7 +37,7 @@ func main() {
 		backlight.High()   // Set pin High
 		buffer.Splash()
 		// time.AfterFunc(6*time.Second, stats)
-		time.AfterFunc(0*time.Second, buffer.Stats)
+		// time.AfterFunc(0*time.Second, buffer.Stats)
 	} else {
 		fmt.Fprintf(os.Stderr, "Could not connect to framebuffer screen: %v\n", err)
 	}
@@ -47,13 +47,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	http.HandleFunc("/rgb", buffer.RGB)
-	http.HandleFunc("/image", buffer.DrawImage)
-	http.HandleFunc("/gif", buffer.DrawGIF)
-	http.HandleFunc("/text", buffer.TextRequest)
-	http.HandleFunc("/stats/on", buffer.EnableStats)
-	http.HandleFunc("/qr", buffer.QR)
-	http.HandleFunc("/disk-stats", buffer.DiskStats)
+//	http.HandleFunc("/rgb", buffer.RGB)
+//	http.HandleFunc("/image", buffer.DrawImage)
+//	http.HandleFunc("/gif", buffer.DrawGIF)
+//	http.HandleFunc("/text", buffer.TextRequest)
+//	http.HandleFunc("/stats/on", buffer.EnableStats)
+//	http.HandleFunc("/qr", buffer.QR)
+//	http.HandleFunc("/disk-stats", buffer.DiskStats)
 	http.HandleFunc("/exit", exit)
 
 	os.MkdirAll("/var/run/pibox/", 0755)

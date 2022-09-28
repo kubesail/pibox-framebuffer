@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"image/draw"
 	"image/gif"
 	"io/ioutil"
-	"log"
 	"math"
 	"net"
 	"net/http"
@@ -21,13 +19,12 @@ import (
 
 	human "github.com/dustin/go-humanize"
 	"github.com/fogleman/gg"
-	"github.com/gonutz/framebuffer"
-	"github.com/rakyll/statik/fs"
+	//"github.com/rakyll/statik/fs"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
 	"github.com/skip2/go-qrcode"
-	"github.com/rubiojr/go-pirateaudio"
+	"github.com/kubesail/pibox-framebuffer/display"
 )
 
 const DefaultScreenSize = 240
@@ -39,11 +36,13 @@ type PiboxFrameBuffer struct {
 	enableStats bool
 }
 
-func (b *PiboxFrameBuffer) openFrameBuffer() *framebuffer.Device {
+func (b *PiboxFrameBuffer) openFrameBuffer() (*display.Display) {
 	fb, err := display.Init()
 	if err != nil {
 		panic(err)
 	}
+	fb.Rotate(display.ROTATION_180)
+	// defer fb.Close()
 	return fb
 }
 
@@ -67,14 +66,8 @@ func (b *PiboxFrameBuffer) RGB(w http.ResponseWriter, req *http.Request) {
 }
 
 func (b *PiboxFrameBuffer) DrawSolidColor(c RGB) {
-	fb, err := framebuffer.Open("/dev/" + b.config.fbNum)
-	if err != nil {
-		panic(err)
-	}
-	defer fb.Close()
-	magenta := image.NewUniform(color.RGBA{c.R, c.G, c.B, 255})
-	// draw.Draw(fb, fb.Bounds(), magenta, image.Point{}, draw.Src)
-	fb
+	fb := b.openFrameBuffer()
+	fb.FillScreen(color.RGBA{c.R, c.G, c.B, 255})
 	b.enableStats = false
 }
 
@@ -86,11 +79,7 @@ func (b *PiboxFrameBuffer) QR(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fb, err := framebuffer.Open("/dev/" + b.config.fbNum)
-	if err != nil {
-		panic(err)
-	}
-	defer fb.Close()
+	fb := b.openFrameBuffer()
 
 	// var q qrcode.QRCode
 	q, err := qrcode.New(strings.Join(content, ""), qrcode.Low)
@@ -102,11 +91,13 @@ func (b *PiboxFrameBuffer) QR(w http.ResponseWriter, req *http.Request) {
 	// var qr image.Image
 	img := q.Image(180)
 
-	draw.Draw(fb,
-		image.Rectangle{Min: image.Point{X: 30, Y: 47}, Max: image.Point{X: 210, Y: 227}},
-		img,
-		image.Point{},
-		draw.Src)
+	// draw.Draw(fb,
+	//	image.Rectangle{Min: image.Point{X: 30, Y: 47}, Max: image.Point{X: 210, Y: 227}},
+	//	img,
+	//	image.Point{},
+	//	draw.Src)
+
+        fb.DrawRAW(img)
 
 	fmt.Println("QR Code printed to screen")
 	b.enableStats = false
@@ -253,7 +244,8 @@ func (b *PiboxFrameBuffer) TextOnContext(dc *gg.Context, x float64, y float64, s
 
 func (b *PiboxFrameBuffer) flushTextToScreen(dc *gg.Context) {
 	fb := b.openFrameBuffer()
-	draw.Draw(fb, fb.Bounds(), dc.Image(), image.Point{}, draw.Src)
+	// draw.Draw(fb, fb.Bounds(), dc.Image(), image.Point{}, draw.Src)
+	fb.DrawRAW(dc.Image())
 }
 
 func (b *PiboxFrameBuffer) DrawImage(w http.ResponseWriter, req *http.Request) {
@@ -262,20 +254,21 @@ func (b *PiboxFrameBuffer) DrawImage(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		panic(err)
 	}
-	draw.Draw(fb, fb.Bounds(), img, image.Point{}, draw.Src)
+	// draw.Draw(fb, fb.Bounds(), img, image.Point{}, draw.Src)
+	fb.DrawRAW(img)
 	fmt.Fprintf(w, "Image drawn\n")
 	b.enableStats = false
 }
 
 func (b *PiboxFrameBuffer) DrawGIF(w http.ResponseWriter, req *http.Request) {
 	fb := b.openFrameBuffer()
-	defer fb.Close()
 	imgGif, err := gif.DecodeAll(req.Body)
 	if err != nil {
 		panic(err)
 	}
 	for i, frame := range imgGif.Image {
-		draw.Draw(fb, fb.Bounds(), frame, image.Point{}, draw.Src)
+		// draw.Draw(fb, fb.Bounds(), frame, image.Point{}, draw.Src)
+		fb.DrawRAW(frame)
 		time.Sleep(time.Millisecond * 3 * time.Duration(imgGif.Delay[i]))
 	}
 	fmt.Fprintf(w, "GIF drawn\n")
@@ -283,32 +276,35 @@ func (b *PiboxFrameBuffer) DrawGIF(w http.ResponseWriter, req *http.Request) {
 }
 
 func (b *PiboxFrameBuffer) Exit() {
+	fb := b.openFrameBuffer()
 	fmt.Println("Received exit request, shutting down...")
-	c := RGB{R: 0, G: 0, B: 255}
-	b.DrawSolidColor(c)
+	c := color.RGBA{R: 0, G: 0, B: 255, A: 0}
+	// b.DrawSolidColor(c)
+	fb.FillScreen(c)
 }
 
 func (b *PiboxFrameBuffer) Splash() {
 	fb := b.openFrameBuffer()
-	defer fb.Close()
 
-	statikFS, err := fs.New()
-	if err != nil {
-		panic(err)
-	}
-	r, err := statikFS.Open("/pibox-splash.png")
-	if err != nil {
-		panic(err)
-	}
-	img, _, err := image.Decode(r)
-	if err != nil {
-		panic(err)
-	}
-	draw.Draw(fb, fb.Bounds(), img, image.ZP, draw.Src)
-	dc := gg.NewContext(b.config.screenSize, b.config.screenSize)
-	dc.SetColor(color.RGBA{100, 100, 100, 255})
-	b.TextOnContext(dc, 120, 210, 20, "starting services", true, gg.AlignCenter)
-	b.flushTextToScreen(dc)
+	fb.FillScreen(color.RGBA{R: 0, G: 255, B: 0, A: 255})
+
+//	statikFS, err := fs.New()
+//	if err != nil {
+//		panic(err)
+//	}
+//	r, err := statikFS.Open("/pibox-splash.png")
+//	if err != nil {
+//		panic(err)
+//	}
+	// img, _, err := image.Decode(r)
+	//if err != nil {
+	//	panic(err)
+	//}
+//	fb.DrawImage(r)
+//	dc := gg.NewContext(b.config.screenSize, b.config.screenSize)
+//	dc.SetColor(color.RGBA{100, 100, 100, 255})
+//	b.TextOnContext(dc, 120, 210, 20, "starting services", true, gg.AlignCenter)
+//	b.flushTextToScreen(dc)
 }
 
 func (b *PiboxFrameBuffer) EnableStats(w http.ResponseWriter, req *http.Request) {
