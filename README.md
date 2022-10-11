@@ -13,7 +13,7 @@ will automatically install the latest framebuffer on your system
 ### Changing the disk stats directory
 If you aren't using our OS or want to mount your disks in a different place than the default `/var/lib/rancher`, you can set the environment variable `DISK_MOUNT_PREFIX` to your mountpoint. For passing an environment variable to the framebuffer service during boot, edit `/etc/systemd/system/pibox-framebuffer.service` and add this line in the `[Service]` section.
 
-    Environment="DISK_MOUNT_PREFIX==/path/to/mountpoint"
+    Environment="DISK_MOUNT_PREFIX=/path/to/mountpoint"
 
 ### Writing arbitrary text
 
