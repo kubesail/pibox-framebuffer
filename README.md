@@ -10,6 +10,9 @@ will automatically install the latest framebuffer on your system
   
 ## Usage
 
+### Changing the disk stats directory
+If you aren't using our OS or want to mount your disks in a different place than the default `/var/lib/rancher`, you can launch the framebuffer service with an environment variable `DISK_MOUNT_PREFIX=/path/to/mountpoint`
+
 ### Writing arbitrary text
 
 You can make requests to the framebuffer service to write arbitrary text.
