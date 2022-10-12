@@ -15,6 +15,11 @@ If you aren't using our OS or want to mount your disks in a different place than
 
     Environment="DISK_MOUNT_PREFIX=/path/to/mountpoint"
 
+Then restart your framebuffer service:
+
+    systemctl daemon-reload
+    sudo service pibox-framebuffer restart
+
 ### Writing arbitrary text
 
 You can make requests to the framebuffer service to write arbitrary text.
