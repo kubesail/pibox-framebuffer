@@ -4,43 +4,11 @@ The PiBox's display server. Lightweight Go binary to draw images to the framebuf
 
 ## Usage
 
-### Writing arbitrary text
+### Drawing an image
 
-You can make requests to the framebuffer service to write arbitrary text.
+```curl --unix-socket /var/run/pibox/framebuffer.sock -X POST --data-binary @image.png http://localhost/image```
 
-```bash
-curl -XGET --unix-socket /var/run/pibox/framebuffer.sock "http://localhost/text?content=hello+world&background=00ff00"
-```
-
-Here's how you might write the output of the `date` command to the PiBox screen:
-
-```bash
-#!/bin/bash
-SCRIPT_OUTPUT=$(date "+%A, %b %-d %l:%m")
-curl -XGET --unix-socket /var/run/pibox/framebuffer.sock http://localhost/text \
-  --data-urlencode "content=${SCRIPT_OUTPUT}" \
-  --data-urlencode "color=000000" \
-  --data-urlencode "background=ffffff" \
-  --data-urlencode "size=66"
-```
-
-`GET /text`
-|param|description|
-|---|---|
-|content|The text you want shown on the screen|
-|size|Pixel size of the text drawn|
-|color|Color of the text drawn|
-|background|Hex RGB background color of the entire screen. If omitted then no background color is drawn (ie, transparent).|
-|x|X position - 120 is center, 240 is right-most edge|
-|y|Y position - 120 is center, 240 is bottom-most edge|
-
-## Setting a background color
-
-This can be useful for clearing the screen and then layering multiple lines of text with a transparent background. This example would set the entire screen purple.
-
-```bash
-curl --unix-socket /var/run/pibox/framebuffer.sock http://localhost/rgb -XPOST -d '{"R":255, "G": 0, "B": 255}'
-```
+NOTE: Other text and graphics endpoints were supported in old versions, but for the sake of this code's simplicity, we now recommend updating to this version, creating an image using something like [Canvas](https://www.npmjs.com/package/canvas), and then then flushing it to the screen using the above endpoint. This new version uses SPI and is far more stable than the framebuffer kernel modules, which can inadvertently redirect console output to the LCD.
 
 ## Installing for development
 
@@ -53,8 +21,8 @@ curl --unix-socket /var/run/pibox/framebuffer.sock http://localhost/rgb -XPOST -
 
 ### Packaging images into binary
 
-    go get github.com/rakyll/statik
-    statik -src=img
+    go install github.com/rakyll/statik@latest
+    statik -src=<imgpath>
     
 ### Via script
 
