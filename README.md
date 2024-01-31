@@ -7,6 +7,7 @@ The PiBox's display server. Lightweight Go binary to draw images to the framebuf
 Enable SPI using `raspi-config` -> `Interfacing Options` -> `SPI`
 Reboot to enable SPI, `sudo reboot now`
 Download the latest [release](https://github.com/kubesail/pibox-framebuffer/releases)
+Set permissions, `chmod +x pibox-framebuffer`
 Run the binary using `./pibox-framebuffer`
 
 Alternatively, install it as a service:
