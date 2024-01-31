@@ -301,10 +301,6 @@ func (b *PiboxFrameBuffer) Splash() {
 		panic(err)
 	}
 	fb.DrawRAW(img)
-	dc := gg.NewContext(b.config.screenSize, b.config.screenSize)
-	dc.SetColor(color.RGBA{100, 100, 100, 255})
-	b.TextOnContext(dc, 120, 210, 20, "starting services", true, gg.AlignCenter)
-	b.flushTextToScreen(dc)
 }
 
 func (b *PiboxFrameBuffer) EnableStats(w http.ResponseWriter, req *http.Request) {
