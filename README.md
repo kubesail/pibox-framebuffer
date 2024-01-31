@@ -14,8 +14,8 @@ Alternatively, install it as a service:
 
     mkdir /opt/kubesail
     mv pibox-framebuffer /opt/kubesail/pibox-framebuffer
-    # Download the .service file from this repo
-    cp pibox-framebuffer.service /etc/systemd/system/pibox-framebuffer.service
+    # Download the .service file from this repo:
+    curl -L https://raw.githubusercontent.com/kubesail/pibox-framebuffer/main/pibox-framebuffer.service -o /etc/systemd/system/pibox-framebuffer.service
     systemctl daemon-reload
     systemctl enable pibox-framebuffer
 
