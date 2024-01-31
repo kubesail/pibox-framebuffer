@@ -1,0 +1,9 @@
+[Unit]
+Requires=multi-user.target
+After=multi-user.target
+[Service]
+ExecStart=/opt/kubesail/pibox-framebuffer
+Restart=always
+RestartSec=5s
+[Install]
+WantedBy=multi-user.target
