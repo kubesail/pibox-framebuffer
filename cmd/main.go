@@ -62,7 +62,7 @@ func main() {
 	// http.HandleFunc("/disk-stats", buffer.DiskStats)
 	http.HandleFunc("/exit", exit)
 
-	fmt.Printf("Listening on %s:%s\n", listenHost, listenPort)
+	fmt.Printf("PiBox Framebuffer listening on %s:%s\n", listenHost, listenPort)
 	// listen on localhost only	
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", listenHost, listenPort))
 	if err != nil {
