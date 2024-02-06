@@ -15,14 +15,20 @@ import (
 )
 
 const DefaultDiskMountPrefix = "/var/lib/rancher"
-const DefaultListenSocket = "/var/run/pibox/framebuffer.sock"
+const DefaultListenHost = "localhost"
+const DefaultListenPort = "2019"
 
 func main() {
-	listenSocket, ok := os.LookupEnv("LISTEN_SOCKET")
+	listenHost, ok := os.LookupEnv("HOST")
 	if !ok {
-		listenSocket = DefaultListenSocket
+		listenHost = DefaultListenHost
 	}
 
+	listenPort, ok := os.LookupEnv("PORT")
+	if !ok {
+		listenPort = DefaultListenPort
+	}
+	
 	diskMountPrefix, ok := os.LookupEnv("DISK_MOUNT_PREFIX")
 	if !ok {
 		diskMountPrefix = DefaultDiskMountPrefix
@@ -47,22 +53,20 @@ func main() {
 		os.Exit(0)
 	}
 
-	http.HandleFunc("/rgb", buffer.RGB)
+	// http.HandleFunc("/rgb", buffer.RGB)
 	http.HandleFunc("/image", buffer.DrawImage)
-	http.HandleFunc("/gif", buffer.DrawGIF)
-	http.HandleFunc("/text", buffer.TextRequest)
-	http.HandleFunc("/stats/on", buffer.EnableStats)
-	http.HandleFunc("/qr", buffer.QR)
-	http.HandleFunc("/disk-stats", buffer.DiskStats)
+	// http.HandleFunc("/gif", buffer.DrawGIF)
+	// http.HandleFunc("/text", buffer.TextRequest)
+	// http.HandleFunc("/stats/on", buffer.EnableStats)
+	// http.HandleFunc("/qr", buffer.QR)
+	// http.HandleFunc("/disk-stats", buffer.DiskStats)
 	http.HandleFunc("/exit", exit)
 
-	os.MkdirAll("/var/run/pibox/", 0755)
-	os.Remove(listenSocket)
-	fmt.Printf("Listening on socket: %s\n", listenSocket)
-	listener, err := net.Listen("unix", listenSocket)
-	os.Chmod(listenSocket, 0777)
+	fmt.Printf("Listening on %s:%s\n", listenHost, listenPort)
+	// listen on localhost only	
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", listenHost, listenPort))
 	if err != nil {
-		log.Fatalf("Could not listen on %s: %v", listenSocket, err)
+		log.Fatalf("Could not listen on %s:%s, %v", listenPort, err)
 		return
 	}
 	defer listener.Close()
