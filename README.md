@@ -4,18 +4,18 @@ The PiBox's display server. Lightweight Go binary to draw images to the framebuf
 
 ## Installation
 
-Enable SPI using `raspi-config` -> `Interfacing Options` -> `SPI`
-Reboot to enable SPI, `sudo reboot now`
-Download the latest [release](https://github.com/kubesail/pibox-framebuffer/releases)
-Set permissions, `chmod +x pibox-framebuffer`
-Run the binary using `./pibox-framebuffer`
+* Enable SPI using `raspi-config` -> `Interfacing Options` -> `SPI`
+* Reboot to enable SPI, `sudo reboot now`
+* Download the latest [release](https://github.com/kubesail/pibox-framebuffer/releases)
+* Set permissions, `chmod +x pibox-framebuffer`
+* Run the binary using `./pibox-framebuffer`
 
 Alternatively, install it as a service:
 
     mkdir /opt/kubesail
     mv pibox-framebuffer /opt/kubesail/pibox-framebuffer
-    # Download the .service file from this repo
-    cp pibox-framebuffer.service /etc/systemd/system/pibox-framebuffer.service
+    # Download the .service file from this repo:
+    curl -L https://raw.githubusercontent.com/kubesail/pibox-framebuffer/main/pibox-framebuffer.service -o /etc/systemd/system/pibox-framebuffer.service
     systemctl daemon-reload
     systemctl enable pibox-framebuffer
 
